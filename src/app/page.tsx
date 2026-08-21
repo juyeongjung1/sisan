@@ -26,7 +26,7 @@ import {
   recordFundSyncTime,
   getLastFundSyncTime,
 } from '@/lib/fundSync';
-import { syncHistoryWithHoldings } from '@/lib/historyGenerator';
+import { syncHistoryWithHoldings, generateInitialHoldingHistories } from '@/lib/historyGenerator';
 import {
   INITIAL_ACCOUNTS,
   INITIAL_HOLDINGS,
@@ -69,7 +69,9 @@ export default function DashboardPage() {
   const [holdings, setHoldings] = useState<AssetHolding[]>(INITIAL_HOLDINGS);
   const [recurringPlans, setRecurringPlans] = useState<RecurringPlan[]>(INITIAL_RECURRING_PLANS);
   const [accumulationLogs, setAccumulationLogs] = useState<AccumulationLog[]>([]);
-  const [historyPoints, setHistoryPoints] = useState<HoldingHistoryPoint[]>([]);
+  const [historyPoints, setHistoryPoints] = useState<HoldingHistoryPoint[]>(() =>
+    generateInitialHoldingHistories(INITIAL_HOLDINGS)
+  );
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>(DEFAULT_EXCHANGE_RATES);
   const [simulatedUsdRate, setSimulatedUsdRate] = useState<number>(DEFAULT_EXCHANGE_RATES.USD);
   const [isFetchingRates, setIsFetchingRates] = useState<boolean>(false);
@@ -78,7 +80,7 @@ export default function DashboardPage() {
   const [isClient, setIsClient] = useState<boolean>(false);
 
   // 多言語 & プライバシーマスク管理
-  const [lang, setLang] = useState<Language>('ja');
+  const [lang, setLang] = useState<Language>('ko');
   const [isMasked, setIsMasked] = useState<boolean>(false);
 
   // 自動積立通知トースト
@@ -135,7 +137,10 @@ export default function DashboardPage() {
     const loadedHoldings = loadSavedHoldings();
     const loadedPlans = loadSavedRecurringPlans();
     const loadedLogs = loadSavedAccumulationLogs();
-    const loadedHistory = loadSavedHistoryPoints(loadedHoldings);
+    const rawLoadedHistory = loadSavedHistoryPoints(loadedHoldings);
+    const loadedHistory = (rawLoadedHistory && rawLoadedHistory.length > 0)
+      ? rawLoadedHistory
+      : generateInitialHoldingHistories(loadedHoldings);
     const loadedRates = loadSavedRates();
     const lastSync = getLastFundSyncTime();
     setLastFundSyncTime(lastSync);
@@ -143,6 +148,10 @@ export default function DashboardPage() {
     const savedLang = localStorage.getItem('sisan_lang') as Language | null;
     if (savedLang === 'ko' || savedLang === 'ja') {
       setLang(savedLang);
+    } else {
+      // 未設定の場合は韓国語をデフォルトに設定して保存
+      setLang('ko');
+      localStorage.setItem('sisan_lang', 'ko');
     }
 
     // 日付経過による自動積立チェック

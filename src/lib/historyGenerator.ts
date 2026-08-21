@@ -123,7 +123,7 @@ export function filterHistoryByTimeframe(
   historyPoints: HoldingHistoryPoint[],
   selectedHoldingId: string, // 'all' または 特定のholdingId
   timeframe: TimeframeOption,
-  now: Date = new Date(2026, 7, 21)
+  now?: Date
 ): HoldingHistoryPoint[] {
   let filtered = historyPoints;
 
@@ -150,8 +150,12 @@ export function filterHistoryByTimeframe(
     }));
   }
 
-  // 2. 期間フィルタ
-  const cutoffDate = new Date(now);
+  // 2. 期間フィルタ（基準日は全データの最新日付を採用し、端末ローカル時計のズレによる0表示を完全に防止）
+  const latestTimestamp = filtered.length > 0
+    ? Math.max(...filtered.map((p) => new Date(p.date).getTime()))
+    : (now ? now.getTime() : new Date().getTime());
+
+  const cutoffDate = new Date(latestTimestamp);
   switch (timeframe) {
     case 'day': // 直近7日間 (日次)
       cutoffDate.setDate(cutoffDate.getDate() - 7);
@@ -165,12 +169,16 @@ export function filterHistoryByTimeframe(
     case 'year': // 直近3年間
       cutoffDate.setFullYear(cutoffDate.getFullYear() - 3);
       break;
-    case 'all': // 全期間（8年間）
+    case 'all': // 全期間（10年間）
       cutoffDate.setFullYear(cutoffDate.getFullYear() - 10);
       break;
   }
 
-  const result = filtered.filter((p) => new Date(p.date) >= cutoffDate);
+  let result = filtered.filter((p) => new Date(p.date) >= cutoffDate);
+  if (result.length === 0 && filtered.length > 0) {
+    // 期間内にデータが万一ない場合は直近のデータを必ず返す
+    result = filtered.slice(-7);
+  }
   
   // 日付順にソートし重複日付を除去
   const uniqueMap = new Map<string, HoldingHistoryPoint>();

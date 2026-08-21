@@ -1,3 +1,5 @@
+import { PaymentMethod } from '@/types';
+
 export type Language = 'ja' | 'ko';
 
 export interface Translations {
@@ -158,45 +160,45 @@ export const DICTIONARY: Record<Language, Translations> = {
 
     contribTitle: '오늘의 종목별 기여도 분석 & 미국 시장 요인 해설',
     contribSubtitle: '어떤 상품이 크게 영향을 미쳤고, 어떤 자산이 하락을 방어했는지 시각화',
-    t1Notice: '해외 펀드는「전날 밤 미국 주식 종가 ➔ 다음 날 오후 기준가」에 반영됩니다',
-    todayChange: '오늘의 포트폴리오 전체 변동',
-    dragFactors: '하락 요인 (하락 기여)',
-    cushionFactors: '상쇄·방어 효과 (하락 완화)',
-    dragListTitle: '📉 하락 요인이 된 상품',
-    cushionListTitle: '🛡️ 상승 또는 하락을 방어한 상품 (상쇄 요인)',
-    usStocksTitle: '지수를 움직인 전날 밤 미국 핵심 주식 (Magnificent 7)',
-    marketDriversTitle: '최신 시장 & 환율 요인 해설',
+    t1Notice: '해외 펀드는 전날 밤 미국 증시 마감가가 다음 날 저녁 기준가에 반영됩니다',
+    todayChange: '오늘의 전체 포트폴리오 변동',
+    dragFactors: '하락 요인 (부정적 기여)',
+    cushionFactors: '방어·쿠션 효과 (하락 완화)',
+    dragListTitle: '📉 하락 원인이 된 상품',
+    cushionListTitle: '🛡️ 상승 또는 하락을 방어한 상품 (쿠션 요인)',
+    usStocksTitle: '지수를 움직인 전날 밤 미국 빅테크 (Magnificent 7)',
+    marketDriversTitle: '최신 시장 상황 및 환율 요인 해설',
 
     historyTitle: '상품별·기간별(일/주/월/년) 자산 추이 분석',
-    historySubtitle: '실제 투자 기간에 연동된 정밀 포트폴리오 트래커',
-    zoomScaleOn: '변동 확대: ON',
-    zoomScaleOff: '전체 표시: 0기준',
+    historySubtitle: '실제 투자 운용 기간을 반영한 정밀 포트폴리오 트래커',
+    zoomScaleOn: '⚡ 변동 강조: ON',
+    zoomScaleOff: '전체 영역: 0 기준',
     currentVal: '현재 평가액',
-    dailyDiff: '전일 대비 (1일 변동)',
-    periodCumulative: '선택 기간 통산 증감',
+    dailyDiff: '전일 대비 (어제 대비 1일 변동)',
+    periodCumulative: '선택 기간 누적 증감',
     fxRateTrend: '환율 추이 (USD/JPY)',
-    allAssets: '📊 전체 자산 합계 추이',
+    allAssets: '📊 전체 자산 합산 추이',
     timeframeDay: '일 (7일)',
-    timeframeWeek: '주 (4週)',
+    timeframeWeek: '주 (4주)',
     timeframeMonth: '월 (1년)',
     timeframeYear: '년 (3년)',
-    timeframeAll: '전체',
+    timeframeAll: '전체 기간',
 
-    tableTitle: '보유 자산·종목 목록',
-    tableSubtitle: '계좌별 종목 상세 및 3시간 주기 공시 기준가 자동 연동',
+    tableTitle: '보유 자산 및 종목 목록',
+    tableSubtitle: '계좌별 종목 상세 및 3시간 단위 최신 공시 기준가 연동',
     colName: '종목명 / 카테고리 / 메모',
     colAccount: '계좌',
     colPrincipal: '투자 원금',
     colFxRate: '매수 환율',
     colValNav: '현재 평가액 / 공시 기준가',
-    colGain: '총 손익',
+    colGain: '총 평가 손익',
     colBreakdown: '환율 요인 / 주가 요인',
     colActions: '관리',
   },
 };
 
 /**
- * 銘柄名の動的翻訳
+ * 保有銘柄名の動的翻訳
  */
 export function translateHoldingName(name: string, lang: Language): string {
   if (lang === 'ja') {
@@ -284,6 +286,34 @@ export function translateAccountName(name: string, lang: Language): string {
 }
 
 /**
+ * 決済方法の動的翻訳
+ */
+export function translatePaymentMethod(method: PaymentMethod, lang: Language): string {
+  if (lang === 'ko') {
+    switch (method) {
+      case 'credit_card':
+        return '신용카드 적립';
+      case 'bank_transfer':
+        return '급여 공제 / 계좌 자동이체';
+      case 'balance':
+        return '증권 계좌 잔고 / 자동 입금';
+      default:
+        return '기타';
+    }
+  }
+  switch (method) {
+    case 'credit_card':
+      return 'クレジットカード積立';
+    case 'bank_transfer':
+      return '給与天引き / 口座振替';
+    case 'balance':
+      return '証券口座残高・自動入金';
+    default:
+      return 'その他';
+  }
+}
+
+/**
  * 備考・メモの動的翻訳
  */
 export function translateNotes(notes: string | undefined, lang: Language): string {
@@ -292,9 +322,10 @@ export function translateNotes(notes: string | undefined, lang: Language): strin
   if (lang === 'ja') {
     if (notes.includes('환헤지') || notes.includes('為替ヘッジ')) return '為替ヘッジあり（-30.35%）。積み立て無し';
     if (notes.includes('5년간') || notes.includes('5年間') || notes.includes('旧NISA')) return '5年間積立運用。他資産への移行中 (+170.82%)';
+    if (notes.includes('매월 1일') || notes.includes('毎月1日') || notes.includes('50,000') || notes.includes('5만')) return '毎月1日に50,000円積立 (+15.23%)';
     if (notes.includes('매월 8일') || notes.includes('毎月8日')) {
       if (notes.includes('36,000') || notes.includes('3.6만') || notes.includes('FANG')) return '毎月8日に36,000円積立 (+21.56%)';
-      return '毎月8日に64,000円積立 (+15.23%)';
+      return '毎月1日に50,000円積立 (+15.23%)';
     }
     if (notes.includes('일괄') || notes.includes('一括')) return '一括購入・長期保有 (+17.98%)';
     if (notes.includes('장기') || notes.includes('長期')) return '長期保有 (+133.85%)';
@@ -306,9 +337,10 @@ export function translateNotes(notes: string | undefined, lang: Language): strin
   // Korean
   if (notes.includes('為替ヘッジ') || notes.includes('환헤지')) return '환헤지 채권형 (-30.35%). 적립 없음';
   if (notes.includes('5年間') || notes.includes('旧NISA') || notes.includes('5년간')) return '5년간 적립 운용. 타 자산으로 분할 전환중 (+170.82%)';
+  if (notes.includes('毎月1日') || notes.includes('매월 1일') || notes.includes('50,000') || notes.includes('5만')) return '매월 1일 정기 적립 (+15.23%)';
   if (notes.includes('毎月8日') || notes.includes('매월 8일')) {
     if (notes.includes('36,000') || notes.includes('3.6만') || notes.includes('FANG')) return '매월 8일 정기 적립 (+21.56%)';
-    return '매월 8일 정기 적립 (+15.23%)';
+    return '매월 1일 정기 적립 (+15.23%)';
   }
   if (notes.includes('一括') || notes.includes('일괄')) return '일괄 매수 보유 (+17.98%)';
   if (notes.includes('長期') || notes.includes('장기')) return '장기保有 (+133.85%)';

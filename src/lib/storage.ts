@@ -3,12 +3,12 @@ import { DEFAULT_EXCHANGE_RATES, INITIAL_ACCOUNTS, INITIAL_HOLDINGS, INITIAL_REC
 import { generateInitialHoldingHistories } from './historyGenerator';
 
 const STORAGE_KEYS = {
-  ACCOUNTS: 'sisan_accounts_v3',
-  HOLDINGS: 'sisan_holdings_v3',
-  RECURRING: 'sisan_recurring_v3',
-  LOGS: 'sisan_accum_logs_v3',
-  HISTORY: 'sisan_history_points_v3',
-  RATES: 'sisan_rates_v3',
+  ACCOUNTS: 'sisan_accounts_v4',
+  HOLDINGS: 'sisan_holdings_v4',
+  RECURRING: 'sisan_recurring_v4',
+  LOGS: 'sisan_accum_logs_v4',
+  HISTORY: 'sisan_history_points_v4',
+  RATES: 'sisan_rates_v4',
 };
 
 export interface ExportData {
@@ -27,7 +27,9 @@ export function loadSavedAccounts(): Account[] {
   try {
     const data = localStorage.getItem(STORAGE_KEYS.ACCOUNTS) || localStorage.getItem('sisan_accounts_v2');
     if (!data) return INITIAL_ACCOUNTS;
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    if (!Array.isArray(parsed) || parsed.length === 0) return INITIAL_ACCOUNTS;
+    return parsed;
   } catch (e) {
     console.error('Failed to load accounts:', e);
     return INITIAL_ACCOUNTS;
@@ -49,6 +51,7 @@ export function loadSavedHoldings(): AssetHolding[] {
     const data = localStorage.getItem(STORAGE_KEYS.HOLDINGS) || localStorage.getItem('sisan_holdings_v2');
     if (!data) return INITIAL_HOLDINGS;
     const parsed: AssetHolding[] = JSON.parse(data);
+    if (!Array.isArray(parsed) || parsed.length === 0) return INITIAL_HOLDINGS;
     
     // 自動マイグレーション: 既存の保存データに fundCode / units / latestNavPrice がない場合は補完
     return parsed.map((p) => {
@@ -85,7 +88,9 @@ export function loadSavedRecurringPlans(): RecurringPlan[] {
   try {
     const data = localStorage.getItem(STORAGE_KEYS.RECURRING) || localStorage.getItem('sisan_recurring_v2');
     if (!data) return INITIAL_RECURRING_PLANS;
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    if (!Array.isArray(parsed) || parsed.length === 0) return INITIAL_RECURRING_PLANS;
+    return parsed;
   } catch (e) {
     console.error('Failed to load recurring plans:', e);
     return INITIAL_RECURRING_PLANS;
@@ -106,7 +111,9 @@ export function loadSavedAccumulationLogs(): AccumulationLog[] {
   try {
     const data = localStorage.getItem(STORAGE_KEYS.LOGS) || localStorage.getItem('sisan_accum_logs_v2');
     if (!data) return [];
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    if (!Array.isArray(parsed)) return [];
+    return parsed;
   } catch (e) {
     console.error('Failed to load accumulation logs:', e);
     return [];
@@ -127,7 +134,11 @@ export function loadSavedHistoryPoints(holdings: AssetHolding[]): HoldingHistory
   try {
     const data = localStorage.getItem(STORAGE_KEYS.HISTORY) || localStorage.getItem('sisan_history_points_v2');
     if (!data) return generateInitialHoldingHistories(holdings);
-    return JSON.parse(data);
+    const parsed: HoldingHistoryPoint[] = JSON.parse(data);
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return generateInitialHoldingHistories(holdings);
+    }
+    return parsed;
   } catch (e) {
     console.error('Failed to load history points:', e);
     return generateInitialHoldingHistories(holdings);
@@ -148,7 +159,9 @@ export function loadSavedRates(): ExchangeRates {
   try {
     const data = localStorage.getItem(STORAGE_KEYS.RATES) || localStorage.getItem('sisan_rates_v2');
     if (!data) return DEFAULT_EXCHANGE_RATES;
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    if (!parsed || !parsed.USD) return DEFAULT_EXCHANGE_RATES;
+    return parsed;
   } catch (e) {
     console.error('Failed to load rates:', e);
     return DEFAULT_EXCHANGE_RATES;
@@ -164,16 +177,19 @@ export function saveRates(rates: ExchangeRates): void {
   }
 }
 
-export function exportToJson(
+/**
+ * 全データのJSONエクスポート
+ */
+export function exportAllData(
   accounts: Account[],
   holdings: AssetHolding[],
   recurringPlans: RecurringPlan[],
   exchangeRates: ExchangeRates,
-  accumulationLogs: AccumulationLog[] = [],
-  historyPoints: HoldingHistoryPoint[] = []
-): void {
-  const exportObj: ExportData = {
-    version: '1.5.0',
+  accumulationLogs?: AccumulationLog[],
+  historyPoints?: HoldingHistoryPoint[]
+): string {
+  const exportPayload: ExportData = {
+    version: '3.0.0',
     exportedAt: new Date().toISOString(),
     accounts,
     holdings,
@@ -182,56 +198,99 @@ export function exportToJson(
     historyPoints,
     exchangeRates,
   };
-  const jsonStr = JSON.stringify(exportObj, null, 2);
+  return JSON.stringify(exportPayload, null, 2);
+}
+
+export function exportToJson(
+  accounts: Account[],
+  holdings: AssetHolding[],
+  recurringPlans: RecurringPlan[],
+  exchangeRates: ExchangeRates,
+  accumulationLogs?: AccumulationLog[],
+  historyPoints?: HoldingHistoryPoint[]
+): void {
+  if (typeof window === 'undefined') return;
+  const jsonStr = exportAllData(accounts, holdings, recurringPlans, exchangeRates, accumulationLogs, historyPoints);
   const blob = new Blob([jsonStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  const dateStr = new Date().toISOString().split('T')[0];
-  link.href = url;
-  link.download = `sisan_backup_${dateStr}.json`;
-  link.click();
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `sisan_backup_${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
   URL.revokeObjectURL(url);
 }
 
 export function exportToCsv(holdings: AssetHolding[], accounts: Account[]): void {
-  const headers = [
-    '銘柄名',
-    '口座名',
-    'カテゴリ',
-    '原通貨',
-    '為替ヘッジ',
-    '投資元本(円)',
-    '購入時為替レート',
-    '現在評価額(円)',
-    '公表基準価額',
-    '公表前日比(%)',
-    '備考',
-  ];
+  if (typeof window === 'undefined') return;
+  const headers = ['銘柄名', '口座', '種別', '通貨', '取得金額(円)', '現在評価額(円)', '含み損益(円)', '損益率(%)', '前日比(円)', '前日比(%)'];
+  const accountMap = new Map<string, string>();
+  accounts.forEach((a) => accountMap.set(a.id, a.name));
 
   const rows = holdings.map((h) => {
-    const acc = accounts.find((a) => a.id === h.accountId);
+    const accName = accountMap.get(h.accountId) || h.accountId;
+    const gainVal = h.currentValJpy - h.purchaseAmountJpy;
+    const gainPct = h.purchaseAmountJpy > 0 ? (gainVal / h.purchaseAmountJpy) * 100 : 0;
     return [
       `"${h.name.replace(/"/g, '""')}"`,
-      `"${(acc?.name || '').replace(/"/g, '""')}"`,
+      `"${accName.replace(/"/g, '""')}"`,
       `"${h.category}"`,
-      h.baseCurrency,
-      h.hasFxHedge ? 'あり' : 'なし',
+      `"${h.baseCurrency}"`,
       h.purchaseAmountJpy,
-      h.purchaseFxRate,
       h.currentValJpy,
-      h.latestNavPrice || '-',
-      h.dailyChangePct !== undefined ? `${h.dailyChangePct}%` : '-',
-      `"${(h.notes || '').replace(/"/g, '""')}"`,
-    ];
+      gainVal,
+      gainPct.toFixed(2),
+      h.dailyChangeVal || 0,
+      (h.dailyChangePct || 0).toFixed(2),
+    ].join(',');
   });
 
-  const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+  const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  const dateStr = new Date().toISOString().split('T')[0];
-  link.href = url;
-  link.download = `sisan_holdings_${dateStr}.csv`;
-  link.click();
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `sisan_holdings_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
   URL.revokeObjectURL(url);
+}
+
+/**
+ * JSONファイルからのインポート復元
+ */
+export function importAllData(jsonString: string): ExportData | null {
+  try {
+    const data = JSON.parse(jsonString) as ExportData;
+    if (!data.accounts || !data.holdings || !data.recurringPlans) {
+      throw new Error('必須データ（口座・保有銘柄・積立設定）が不足しています。');
+    }
+    saveAccounts(data.accounts);
+    saveHoldings(data.holdings);
+    saveRecurringPlans(data.recurringPlans);
+    if (data.accumulationLogs) saveAccumulationLogs(data.accumulationLogs);
+    if (data.historyPoints) saveHistoryPoints(data.historyPoints);
+    if (data.exchangeRates) saveRates(data.exchangeRates);
+    return data;
+  } catch (e) {
+    console.error('Failed to import data:', e);
+    return null;
+  }
+}
+
+/**
+ * データを初期状態にリセット
+ */
+export function resetAllDataToDefault(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(STORAGE_KEYS.ACCOUNTS);
+  localStorage.removeItem(STORAGE_KEYS.HOLDINGS);
+  localStorage.removeItem(STORAGE_KEYS.RECURRING);
+  localStorage.removeItem(STORAGE_KEYS.LOGS);
+  localStorage.removeItem(STORAGE_KEYS.HISTORY);
+  localStorage.removeItem(STORAGE_KEYS.RATES);
+  localStorage.removeItem('sisan_accounts_v2');
+  localStorage.removeItem('sisan_holdings_v2');
+  localStorage.removeItem('sisan_recurring_v2');
+  localStorage.removeItem('sisan_accum_logs_v2');
+  localStorage.removeItem('sisan_history_points_v2');
+  localStorage.removeItem('sisan_rates_v2');
 }

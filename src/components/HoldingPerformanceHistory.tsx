@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { AssetHolding, HoldingHistoryPoint, TimeframeOption } from '@/types';
-import { filterHistoryByTimeframe } from '@/lib/historyGenerator';
+import { filterHistoryByTimeframe, generateInitialHoldingHistories } from '@/lib/historyGenerator';
 import { formatCurrencyJpy, formatPercent } from '@/lib/calculations';
 import { Language, DICTIONARY, translateHoldingName, translateNotes } from '@/lib/i18n';
 import {
@@ -69,8 +69,15 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
     return formatCurrencyJpy(val, showSign);
   };
 
-  // フィルタリングされたデータ
-  const rawChartData = filterHistoryByTimeframe(historyPoints, selectedHoldingId, timeframe);
+  // フィルタリングされたデータ（空の場合はholdingsから自動生成フォールバック）
+  const rawChartData = useMemo(() => {
+    let data = filterHistoryByTimeframe(historyPoints, selectedHoldingId, timeframe);
+    if ((!data || data.length === 0) && holdings && holdings.length > 0) {
+      const generated = generateInitialHoldingHistories(holdings);
+      data = filterHistoryByTimeframe(generated, selectedHoldingId, timeframe);
+    }
+    return data || [];
+  }, [historyPoints, selectedHoldingId, timeframe, holdings]);
 
   // 前日比・日次変動率を各行に計算
   const enrichedChartData: EnrichedHistoryRow[] = useMemo(() => {
@@ -101,16 +108,33 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
   const startPoint = enrichedChartData[0];
   const endPoint = enrichedChartData[enrichedChartData.length - 1];
 
+  // 万が一データ読み込み途中でも確実に現在額を算出するフォールバック
+  const fallbackCurrentVal = selectedHolding
+    ? selectedHolding.currentValJpy
+    : holdings.reduce((sum, h) => sum + h.currentValJpy, 0);
+
+  const fallbackPurchaseVal = selectedHolding
+    ? selectedHolding.purchaseAmountJpy
+    : holdings.reduce((sum, h) => sum + h.purchaseAmountJpy, 0);
+
+  const currentValDisplay = endPoint ? endPoint.currentValJpy : fallbackCurrentVal;
+  const purchaseValDisplay = endPoint ? endPoint.purchaseAmountJpy : fallbackPurchaseVal;
+
+  const fallbackDailyDiffVal = selectedHolding
+    ? (selectedHolding.dailyChangeVal ?? (selectedHolding.currentValJpy * ((selectedHolding.dailyChangePct || 0) / 100)))
+    : holdings.reduce((sum, h) => sum + (h.dailyChangeVal ?? (h.currentValJpy * ((h.dailyChangePct || 0) / 100))), 0);
+
+  const fallbackDailyDiffPct = fallbackCurrentVal > 0 ? (fallbackDailyDiffVal / fallbackCurrentVal) * 100 : 0;
+
+  const latestDailyDiffVal = endPoint ? endPoint.dailyDiffVal : fallbackDailyDiffVal;
+  const latestDailyDiffPercent = endPoint ? endPoint.dailyDiffPercent : fallbackDailyDiffPct;
+
   const periodDiffVal =
-    endPoint && startPoint ? endPoint.currentValJpy - startPoint.currentValJpy : 0;
+    endPoint && startPoint ? endPoint.currentValJpy - startPoint.currentValJpy : (fallbackCurrentVal - fallbackPurchaseVal);
   const periodDiffPercent =
     startPoint && startPoint.currentValJpy > 0
       ? (periodDiffVal / startPoint.currentValJpy) * 100
-      : 0;
-
-  // 最新日の前日比
-  const latestDailyDiffVal = endPoint?.dailyDiffVal || 0;
-  const latestDailyDiffPercent = endPoint?.dailyDiffPercent || 0;
+      : (fallbackPurchaseVal > 0 ? (periodDiffVal / fallbackPurchaseVal) * 100 : 0);
 
   // 期間ラベルの取得
   const timeframeLabels: { key: TimeframeOption; label: string; periodText: string; desc: string }[] = [
@@ -126,7 +150,7 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
   // ダイナミックY軸オートズームの計算
   const currentVals = enrichedChartData.map((d) => d.currentValJpy).filter((v) => v > 0);
   const purchaseVals = enrichedChartData.map((d) => d.purchaseAmountJpy).filter((v) => v > 0);
-  const allVals = [...currentVals, ...purchaseVals];
+  const allVals = [...currentVals, ...purchaseVals, currentValDisplay, purchaseValDisplay].filter((v) => v > 0);
 
   const minVal = allVals.length > 0 ? Math.min(...allVals) : 0;
   const maxVal = allVals.length > 0 ? Math.max(...allVals) : 100000;
@@ -198,7 +222,7 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
   };
 
   return (
-    <div className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-6 ${isModal ? 'max-w-5xl w-full' : ''}`}>
+    <div className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-5 ${isModal ? 'max-w-5xl w-full' : ''}`}>
       {/* Header with Title & Controls */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
         <div className="flex items-center justify-between w-full lg:w-auto">
@@ -316,10 +340,10 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
             {t.currentVal}
           </span>
           <span className="font-extrabold text-lg text-slate-900 dark:text-white block mt-0.5">
-            {formatVal(endPoint?.currentValJpy || 0)}
+            {formatVal(currentValDisplay)}
           </span>
           <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-1">
-            {t.colPrincipal}: {formatVal(endPoint?.purchaseAmountJpy || 0)}
+            {t.colPrincipal}: {formatVal(purchaseValDisplay)}
           </span>
         </div>
 
@@ -400,7 +424,7 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
           </button>
         </div>
 
-        <div className="h-64 sm:h-72 w-full pt-1">
+        <div className="h-64 sm:h-72 w-full pt-1 min-h-[250px]">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={enrichedChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <defs>
@@ -414,6 +438,7 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
                 stroke="#94A3B8"
                 fontSize={10}
                 tickFormatter={(val) => {
+                  if (!val) return '';
                   const parts = val.split('-');
                   return parts.length >= 3 ? `${parts[1]}/${parts[2]}` : val;
                 }}
@@ -472,20 +497,21 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
         </div>
       </div>
 
-      {/* Historical Data Table / Timeline list */}
-      <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+      {/* Historical Detailed Table Section */}
+      <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-            {lang === 'ko' ? '일별·기간별 변동 이력 데이터' : '日別・期間別 変動履歴データ'}
+          <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+            <Calendar className="w-3.5 h-3.5 text-blue-500" />
+            <span>{t.timeframeAll}</span>
           </h3>
           <span className="text-[11px] text-slate-400">
-            {enrichedChartData.length} {lang === 'ko' ? '개 데이터 포인트' : 'データポイント'}
+            {lang === 'ko' ? `총 ${enrichedChartData.length}건 데이터` : `全 ${enrichedChartData.length} 件のデータ`}
           </span>
         </div>
 
-        <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800">
+        <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 sticky top-0 z-10">
+            <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 sticky top-0 z-10 backdrop-blur-md">
               <tr className="border-b border-slate-200 dark:border-slate-700 font-semibold">
                 <th className="py-2 px-3">{lang === 'ko' ? '날짜' : '日付'}</th>
                 <th className="py-2 px-3 text-right">{t.currentVal}</th>
@@ -493,59 +519,51 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
                 <th className="py-2 px-3 text-right">{t.colPrincipal}</th>
                 <th className="py-2 px-3 text-right">{t.totalGain}</th>
                 <th className="py-2 px-3 text-right">{t.fxRateTrend}</th>
-                <th className="py-2 px-3">{lang === 'ko' ? '이벤트 / 비고' : 'イベント / 備考'}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-              {enrichedChartData
-                .slice()
-                .reverse()
-                .map((row, i) => {
-                  const isDailyPositive = row.dailyDiffVal >= 0;
-                  const isTotalPositive = row.totalGainVal >= 0;
-                  return (
-                    <tr
-                      key={row.id || i}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition font-mono"
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-[11px]">
+              {[...enrichedChartData].reverse().map((row) => (
+                <tr
+                  key={row.id}
+                  className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition"
+                >
+                  <td className="py-2 px-3 font-sans font-medium text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <span>{row.date}</span>
+                    {row.notes && (
+                      <span className="text-[9px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-sans border border-indigo-200 dark:border-indigo-800">
+                        {translateNotes(row.notes, lang)}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2 px-3 text-right font-bold text-slate-900 dark:text-white">
+                    {formatVal(row.currentValJpy)}
+                  </td>
+                  <td className="py-2 px-3 text-right">
+                    <span
+                      className={`font-semibold ${
+                        row.dailyDiffVal >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                      }`}
                     >
-                      <td className="py-2 px-3 text-slate-700 dark:text-slate-300 font-semibold">
-                        {row.date}
-                      </td>
-                      <td className="py-2 px-3 text-right font-bold text-slate-900 dark:text-white">
-                        {formatVal(row.currentValJpy)}
-                      </td>
-                      <td className="py-2 px-3 text-right font-semibold">
-                        <span
-                          className={
-                            isDailyPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
-                          }
-                        >
-                          {formatVal(row.dailyDiffVal, true)} (
-                          {formatPercent(row.dailyDiffPercent, true)})
-                        </span>
-                      </td>
-                      <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-400">
-                        {formatVal(row.purchaseAmountJpy)}
-                      </td>
-                      <td className="py-2 px-3 text-right font-semibold">
-                        <span
-                          className={
-                            isTotalPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
-                          }
-                        >
-                          {formatVal(row.totalGainVal, true)} (
-                          {formatPercent(row.totalGainPercent, true)})
-                        </span>
-                      </td>
-                      <td className="py-2 px-3 text-right text-amber-600 dark:text-amber-400 font-medium">
-                        {row.fxRateUsd ? `¥${row.fxRateUsd.toFixed(2)}` : '-'}
-                      </td>
-                      <td className="py-2 px-3 text-slate-500 dark:text-slate-400 text-[11px] font-sans">
-                        {row.notes ? translateNotes(row.notes, lang) : '-'}
-                      </td>
-                    </tr>
-                  );
-                })}
+                      {formatVal(row.dailyDiffVal, true)} ({formatPercent(row.dailyDiffPercent, true)})
+                    </span>
+                  </td>
+                  <td className="py-2 px-3 text-right text-slate-500 dark:text-slate-400">
+                    {formatVal(row.purchaseAmountJpy)}
+                  </td>
+                  <td className="py-2 px-3 text-right">
+                    <span
+                      className={`font-bold ${
+                        row.totalGainVal >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                      }`}
+                    >
+                      {formatVal(row.totalGainVal, true)} ({formatPercent(row.totalGainPercent, true)})
+                    </span>
+                  </td>
+                  <td className="py-2 px-3 text-right text-amber-600 dark:text-amber-400 font-semibold">
+                    {row.fxRateUsd ? `¥${row.fxRateUsd.toFixed(1)}` : '-'}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

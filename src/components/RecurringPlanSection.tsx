@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Account, AssetHolding, RecurringPlan, AccumulationLog } from '@/types';
 import { formatCurrencyJpy } from '@/lib/calculations';
 import { PAYMENT_METHOD_CONFIG } from '@/lib/constants';
-import { Language, translateHoldingName, translateAccountName } from '@/lib/i18n';
+import { Language, translateHoldingName, translateAccountName, translatePaymentMethod } from '@/lib/i18n';
 import {
   Calendar,
   Plus,
@@ -253,7 +253,7 @@ export const RecurringPlanSection: React.FC<RecurringPlanSectionProps> = ({
       {/* Plan Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {recurringPlans.map((plan) => {
-          const methodLabel = PAYMENT_METHOD_CONFIG[plan.paymentMethod]?.label || plan.paymentMethod;
+          const methodLabel = translatePaymentMethod(plan.paymentMethod, lang);
           return (
             <div
               key={plan.id}
