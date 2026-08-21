@@ -3,12 +3,12 @@ import { DEFAULT_EXCHANGE_RATES, INITIAL_ACCOUNTS, INITIAL_HOLDINGS, INITIAL_REC
 import { generateInitialHoldingHistories } from './historyGenerator';
 
 const STORAGE_KEYS = {
-  ACCOUNTS: 'sisan_accounts_v2',
-  HOLDINGS: 'sisan_holdings_v2',
-  RECURRING: 'sisan_recurring_v2',
-  LOGS: 'sisan_accum_logs_v2',
-  HISTORY: 'sisan_history_points_v2',
-  RATES: 'sisan_rates_v2',
+  ACCOUNTS: 'sisan_accounts_v3',
+  HOLDINGS: 'sisan_holdings_v3',
+  RECURRING: 'sisan_recurring_v3',
+  LOGS: 'sisan_accum_logs_v3',
+  HISTORY: 'sisan_history_points_v3',
+  RATES: 'sisan_rates_v3',
 };
 
 export interface ExportData {
@@ -25,7 +25,7 @@ export interface ExportData {
 export function loadSavedAccounts(): Account[] {
   if (typeof window === 'undefined') return INITIAL_ACCOUNTS;
   try {
-    const data = localStorage.getItem(STORAGE_KEYS.ACCOUNTS);
+    const data = localStorage.getItem(STORAGE_KEYS.ACCOUNTS) || localStorage.getItem('sisan_accounts_v2');
     if (!data) return INITIAL_ACCOUNTS;
     return JSON.parse(data);
   } catch (e) {
@@ -46,9 +46,25 @@ export function saveAccounts(accounts: Account[]): void {
 export function loadSavedHoldings(): AssetHolding[] {
   if (typeof window === 'undefined') return INITIAL_HOLDINGS;
   try {
-    const data = localStorage.getItem(STORAGE_KEYS.HOLDINGS);
+    const data = localStorage.getItem(STORAGE_KEYS.HOLDINGS) || localStorage.getItem('sisan_holdings_v2');
     if (!data) return INITIAL_HOLDINGS;
-    return JSON.parse(data);
+    const parsed: AssetHolding[] = JSON.parse(data);
+    
+    // 自動マイグレーション: 既存の保存データに fundCode / units / latestNavPrice がない場合は補完
+    return parsed.map((p) => {
+      const init = INITIAL_HOLDINGS.find((h) => h.id === p.id);
+      if (init) {
+        return {
+          ...p,
+          fundCode: p.fundCode || init.fundCode,
+          units: p.units || init.units,
+          latestNavPrice: p.latestNavPrice || init.latestNavPrice,
+          dailyChangeVal: p.dailyChangeVal !== undefined ? p.dailyChangeVal : init.dailyChangeVal,
+          dailyChangePct: p.dailyChangePct !== undefined ? p.dailyChangePct : init.dailyChangePct,
+        };
+      }
+      return p;
+    });
   } catch (e) {
     console.error('Failed to load holdings:', e);
     return INITIAL_HOLDINGS;
@@ -67,7 +83,7 @@ export function saveHoldings(holdings: AssetHolding[]): void {
 export function loadSavedRecurringPlans(): RecurringPlan[] {
   if (typeof window === 'undefined') return INITIAL_RECURRING_PLANS;
   try {
-    const data = localStorage.getItem(STORAGE_KEYS.RECURRING);
+    const data = localStorage.getItem(STORAGE_KEYS.RECURRING) || localStorage.getItem('sisan_recurring_v2');
     if (!data) return INITIAL_RECURRING_PLANS;
     return JSON.parse(data);
   } catch (e) {
@@ -88,7 +104,7 @@ export function saveRecurringPlans(plans: RecurringPlan[]): void {
 export function loadSavedAccumulationLogs(): AccumulationLog[] {
   if (typeof window === 'undefined') return [];
   try {
-    const data = localStorage.getItem(STORAGE_KEYS.LOGS);
+    const data = localStorage.getItem(STORAGE_KEYS.LOGS) || localStorage.getItem('sisan_accum_logs_v2');
     if (!data) return [];
     return JSON.parse(data);
   } catch (e) {
@@ -109,7 +125,7 @@ export function saveAccumulationLogs(logs: AccumulationLog[]): void {
 export function loadSavedHistoryPoints(holdings: AssetHolding[]): HoldingHistoryPoint[] {
   if (typeof window === 'undefined') return generateInitialHoldingHistories(holdings);
   try {
-    const data = localStorage.getItem(STORAGE_KEYS.HISTORY);
+    const data = localStorage.getItem(STORAGE_KEYS.HISTORY) || localStorage.getItem('sisan_history_points_v2');
     if (!data) return generateInitialHoldingHistories(holdings);
     return JSON.parse(data);
   } catch (e) {
@@ -130,7 +146,7 @@ export function saveHistoryPoints(points: HoldingHistoryPoint[]): void {
 export function loadSavedRates(): ExchangeRates {
   if (typeof window === 'undefined') return DEFAULT_EXCHANGE_RATES;
   try {
-    const data = localStorage.getItem(STORAGE_KEYS.RATES);
+    const data = localStorage.getItem(STORAGE_KEYS.RATES) || localStorage.getItem('sisan_rates_v2');
     if (!data) return DEFAULT_EXCHANGE_RATES;
     return JSON.parse(data);
   } catch (e) {
@@ -157,7 +173,7 @@ export function exportToJson(
   historyPoints: HoldingHistoryPoint[] = []
 ): void {
   const exportObj: ExportData = {
-    version: '1.4.0',
+    version: '1.5.0',
     exportedAt: new Date().toISOString(),
     accounts,
     holdings,
@@ -187,6 +203,8 @@ export function exportToCsv(holdings: AssetHolding[], accounts: Account[]): void
     '投資元本(円)',
     '購入時為替レート',
     '現在評価額(円)',
+    '公表基準価額',
+    '公表前日比(%)',
     '備考',
   ];
 
@@ -201,6 +219,8 @@ export function exportToCsv(holdings: AssetHolding[], accounts: Account[]): void
       h.purchaseAmountJpy,
       h.purchaseFxRate,
       h.currentValJpy,
+      h.latestNavPrice || '-',
+      h.dailyChangePct !== undefined ? `${h.dailyChangePct}%` : '-',
       `"${(h.notes || '').replace(/"/g, '""')}"`,
     ];
   });

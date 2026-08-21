@@ -126,10 +126,8 @@ export default function DashboardPage() {
     // 最新の為替レートを取得
     handleRefreshRates();
 
-    // 3時間経過していれば最新の公表投信基準価額を自動取得
-    if (shouldAutoSyncFunds()) {
-      handleRefreshFundPrices(currentHoldings);
-    }
+    // 初回ロード時および3時間経過時に最新の公表投信基準価額を自動取得
+    handleRefreshFundPrices(currentHoldings);
   }, []);
 
   // データ変更時のLocalStorage自動保存
