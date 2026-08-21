@@ -5,13 +5,13 @@ export const CATEGORY_CONFIG: Record<
   { label: string; color: string; defaultCurrency: Currency; isForeign: boolean }
 > = {
   foreign_equity_fund: {
-    label: '海外株式投信 (オルカン/S&P500等)',
+    label: '海外株式投信 (FANG+/Zテック/S&P500等)',
     color: '#3B82F6', // Blue
     defaultCurrency: 'USD',
     isForeign: true,
   },
   foreign_bond_fund: {
-    label: '海外債券投信',
+    label: '海外債券投信 (為替ヘッジあり/なし)',
     color: '#6366F1', // Indigo
     defaultCurrency: 'USD',
     isForeign: true,
@@ -35,7 +35,7 @@ export const CATEGORY_CONFIG: Record<
     isForeign: true,
   },
   cash_jpy: {
-    label: '日本円 現金・預金',
+    label: '日本円 現金・預金・待機資金',
     color: '#6B7280', // Gray
     defaultCurrency: 'JPY',
     isForeign: false,
@@ -64,9 +64,9 @@ export const CURRENCY_CONFIG: Record<Currency, { label: string; symbol: string; 
 };
 
 export const PAYMENT_METHOD_CONFIG: Record<PaymentMethod, { label: string }> = {
-  credit_card: { label: 'クレジットカード決済 (ポイント還元)' },
-  bank_transfer: { label: '銀行口座自動引落' },
-  balance: { label: '証券口座残高/自動入金' },
+  credit_card: { label: 'クレジットカード積立' },
+  bank_transfer: { label: '給与天引き / 口座振替' },
+  balance: { label: '証券口座残高・自動入金' },
   other: { label: 'その他' },
 };
 
@@ -81,132 +81,178 @@ export const DEFAULT_EXCHANGE_RATES = {
 
 export const INITIAL_ACCOUNTS: Account[] = [
   {
-    id: 'acc_rakuten',
-    name: '楽天証券 (新NISA/つみたて投資枠)',
+    id: 'acc_john_rakuten',
+    name: 'ジョンの楽天証券口座',
     type: 'brokerage',
-    color: '#BE185D',
-    notes: '楽天カード積立メイン',
+    color: '#BE185D', // Rakuten Red/Pink
+    notes: '特定口座・旧NISA・つみたてNISA',
   },
   {
-    id: 'acc_sbi',
-    name: 'SBI証券 (新NISA/成長投資枠)',
+    id: 'acc_miki',
+    name: 'ミキの口座',
     type: 'brokerage',
-    color: '#1D4ED8',
-    notes: '三井住友カード積立・一括投資',
+    color: '#8B5CF6', // Purple
+    notes: '妻の口座 (実質管理)',
   },
   {
-    id: 'acc_monex',
-    name: 'マネックス証券',
+    id: 'acc_john_dc',
+    name: 'ジョンの確定拠出年金 (東京海上日動401k)',
     type: 'brokerage',
-    color: '#D97706',
-    notes: 'マネックスカード積立枠',
+    color: '#059669', // Emerald
+    notes: '東京海上日動なっとく401kプラン',
   },
   {
-    id: 'acc_bank',
-    name: 'メイン銀行口座 (生活防衛資金)',
-    type: 'bank',
-    color: '#059669',
-    notes: '普通預金',
+    id: 'acc_kids',
+    name: '子供の証券口座 (子供NISA)',
+    type: 'brokerage',
+    color: '#F59E0B', // Amber
+    notes: 'ジュニアNISA・待機資金',
   },
 ];
 
 export const INITIAL_HOLDINGS: AssetHolding[] = [
+  // 1. ジョンの楽天証券口座
   {
-    id: 'hold_1',
-    accountId: 'acc_rakuten',
-    name: 'eMAXIS Slim 全世界株式 (オール・カントリー)',
-    category: 'foreign_equity_fund',
-    baseCurrency: 'USD',
-    hasFxHedge: false,
-    purchaseAmountJpy: 2400000,
-    purchaseFxRate: 135.0,
-    currentValJpy: 3450000,
-    notes: '毎月つみたて中。オルカンの王道インデックス',
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'hold_2',
-    accountId: 'acc_sbi',
-    name: 'eMAXIS Slim 米国株式 (S&P500)',
-    category: 'foreign_equity_fund',
-    baseCurrency: 'USD',
-    hasFxHedge: false,
-    purchaseAmountJpy: 1800000,
-    purchaseFxRate: 140.0,
-    currentValJpy: 2680000,
-    notes: '毎月つみたて中。米国主要500社へ分散',
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'hold_3',
-    accountId: 'acc_monex',
-    name: '楽天・全米株式インデックス・ファンド (楽天・VTI)',
-    category: 'foreign_equity_fund',
-    baseCurrency: 'USD',
-    hasFxHedge: false,
-    purchaseAmountJpy: 600000,
-    purchaseFxRate: 145.0,
-    currentValJpy: 780000,
-    notes: 'クレカ積立枠で毎月継続',
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'hold_4',
-    accountId: 'acc_sbi',
-    name: 'eMAXIS Slim 先進国債券インデックス',
+    id: 'hold_john_1',
+    accountId: 'acc_john_rakuten',
+    name: 'IS米国債20年ヘッジ (特定)',
     category: 'foreign_bond_fund',
     baseCurrency: 'USD',
-    hasFxHedge: false,
-    purchaseAmountJpy: 500000,
-    purchaseFxRate: 130.0,
-    currentValJpy: 590000,
-    notes: '無リスク資産寄りの外貨建て債券',
+    hasFxHedge: true, // 為替ヘッジあり
+    purchaseAmountJpy: 286600, // 199,600 - (-87,000)
+    purchaseFxRate: 153.5,
+    currentValJpy: 199600,
+    notes: '為替ヘッジあり（-87,000円 -30.35%）。積み立て無し',
     updatedAt: new Date().toISOString(),
   },
   {
-    id: 'hold_5',
-    accountId: 'acc_bank',
-    name: '日本円 普通預金',
+    id: 'hold_john_2',
+    accountId: 'acc_john_rakuten',
+    name: '楽天レバレッジNASDAQ-100(レバナス) (旧NISA)',
+    category: 'foreign_equity_fund',
+    baseCurrency: 'USD',
+    hasFxHedge: false,
+    purchaseAmountJpy: 709930, // 1,923,404 - 1,213,474
+    purchaseFxRate: 115.0, // 旧NISA初期の平均レート
+    currentValJpy: 1923404,
+    notes: '旧NISAが今年12月で終了するため、12月まで毎月40万円ずつ取り崩して他投資へ移行中',
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'hold_john_3',
+    accountId: 'acc_john_rakuten',
+    name: 'iFreeNext FANG+インデックス (積み立てNISA)',
+    category: 'foreign_equity_fund',
+    baseCurrency: 'USD',
+    hasFxHedge: false,
+    purchaseAmountJpy: 615000, // 747,638 - 132,638
+    purchaseFxRate: 140.0,
+    currentValJpy: 747638,
+    notes: '毎月8日(休日なら9日)に36,000円積立設定中',
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'hold_john_4',
+    accountId: 'acc_john_rakuten',
+    name: 'iFreePlus世界トレンド・テクノロジー株(Zテック20)',
+    category: 'foreign_equity_fund',
+    baseCurrency: 'USD',
+    hasFxHedge: false,
+    purchaseAmountJpy: 1651500, // 1,903,120 - 251,620
+    purchaseFxRate: 145.0,
+    currentValJpy: 1903120,
+    notes: '毎月8日(休日なら9日)に64,000円積立設定中',
+    updatedAt: new Date().toISOString(),
+  },
+
+  // 2. ミキの口座
+  {
+    id: 'hold_miki_1',
+    accountId: 'acc_miki',
+    name: 'iFreePlus世界トレンド・テクノロジー株(Zテック20)',
+    category: 'foreign_equity_fund',
+    baseCurrency: 'USD',
+    hasFxHedge: false,
+    purchaseAmountJpy: 950000, // 1,120,883 - 170,883
+    purchaseFxRate: 143.0,
+    currentValJpy: 1120883,
+    notes: '積み立て無し (一括投資分)',
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'hold_miki_2',
+    accountId: 'acc_miki',
+    name: 'eMAXIS Slim 米国株式(S&P 500)',
+    category: 'foreign_equity_fund',
+    baseCurrency: 'USD',
+    hasFxHedge: false,
+    purchaseAmountJpy: 66666, // 154,342 - 87,676
+    purchaseFxRate: 110.0,
+    currentValJpy: 154342,
+    notes: '長期保有・含み益大 (+131.51%)',
+    updatedAt: new Date().toISOString(),
+  },
+
+  // 3. ジョンの確定拠出年金口座
+  {
+    id: 'hold_john_dc_1',
+    accountId: 'acc_john_dc',
+    name: '東京海上セレクション・外国株式インデックス',
+    category: 'foreign_equity_fund',
+    baseCurrency: 'USD',
+    hasFxHedge: false,
+    purchaseAmountJpy: 1806000, // 3,052,385 - 1,246,385
+    purchaseFxRate: 125.0,
+    currentValJpy: 3052385,
+    notes: '東京海上日動401k。毎月29日に15,000円積立設定中',
+    updatedAt: new Date().toISOString(),
+  },
+
+  // 4. 子供の証券口座
+  {
+    id: 'hold_kids_1',
+    accountId: 'acc_kids',
+    name: '日本円 現金 (待機資金)',
     category: 'cash_jpy',
     baseCurrency: 'JPY',
     hasFxHedge: false,
-    purchaseAmountJpy: 1500000,
+    purchaseAmountJpy: 1100000,
     purchaseFxRate: 1.0,
-    currentValJpy: 1500000,
-    notes: '緊急用・生活防衛資金',
+    currentValJpy: 1100000,
+    notes: '子供NISA・無リスク現金待機資金',
     updatedAt: new Date().toISOString(),
   },
 ];
 
 export const INITIAL_RECURRING_PLANS: RecurringPlan[] = [
   {
-    id: 'rec_1',
-    holdingId: 'hold_1', // オルカン
-    accountId: 'acc_rakuten',
-    monthlyAmountJpy: 50000,
-    dayOfMonth: 1, // 毎月1日
+    id: 'rec_john_fang',
+    holdingId: 'hold_john_3', // FANG+
+    accountId: 'acc_john_rakuten',
+    monthlyAmountJpy: 36000,
+    dayOfMonth: 8, // 毎月8日 (休日なら翌営業日)
     paymentMethod: 'credit_card',
     isActive: true,
-    notes: '楽天カード決済積立 (毎月1日)',
+    notes: '毎月8日(休日は9日)に36,000円積立',
   },
   {
-    id: 'rec_2',
-    holdingId: 'hold_2', // S&P500
-    accountId: 'acc_sbi',
-    monthlyAmountJpy: 50000,
-    dayOfMonth: 10, // 毎月10日
+    id: 'rec_john_ztech',
+    holdingId: 'hold_john_4', // Zテック20
+    accountId: 'acc_john_rakuten',
+    monthlyAmountJpy: 64000,
+    dayOfMonth: 8, // 毎月8日 (休日なら翌営業日)
     paymentMethod: 'credit_card',
     isActive: true,
-    notes: '三井住友カード決済積立 (毎月10日)',
+    notes: '毎月8日(休日は9日)に64,000円積立',
   },
   {
-    id: 'rec_3',
-    holdingId: 'hold_3', // 楽天VTI
-    accountId: 'acc_monex',
-    monthlyAmountJpy: 20000,
-    dayOfMonth: 24, // 毎月24日
-    paymentMethod: 'credit_card',
+    id: 'rec_john_dc',
+    holdingId: 'hold_john_dc_1', // 401k 外国株式
+    accountId: 'acc_john_dc',
+    monthlyAmountJpy: 15000,
+    dayOfMonth: 29, // 毎月29日
+    paymentMethod: 'bank_transfer',
     isActive: true,
-    notes: 'マネックスカード積立 (毎月24日)',
+    notes: '確定拠出年金 毎月29日に15,000円積立',
   },
 ];

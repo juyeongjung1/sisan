@@ -2,10 +2,10 @@ import { Account, AssetHolding, RecurringPlan, ExchangeRates } from '@/types';
 import { DEFAULT_EXCHANGE_RATES, INITIAL_ACCOUNTS, INITIAL_HOLDINGS, INITIAL_RECURRING_PLANS } from './constants';
 
 const STORAGE_KEYS = {
-  ACCOUNTS: 'sisan_accounts_v1',
-  HOLDINGS: 'sisan_holdings_v1',
-  RECURRING: 'sisan_recurring_v1',
-  RATES: 'sisan_rates_v1',
+  ACCOUNTS: 'sisan_accounts_v2',
+  HOLDINGS: 'sisan_holdings_v2',
+  RECURRING: 'sisan_recurring_v2',
+  RATES: 'sisan_rates_v2',
 };
 
 export interface ExportData {
@@ -108,7 +108,7 @@ export function exportToJson(
   exchangeRates: ExchangeRates
 ): void {
   const exportObj: ExportData = {
-    version: '1.1.0',
+    version: '1.2.0',
     exportedAt: new Date().toISOString(),
     accounts,
     holdings,
