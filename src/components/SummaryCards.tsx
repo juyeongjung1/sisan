@@ -70,10 +70,17 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
             </div>
           ) : (
             <div className="mt-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span>{t.totalPrincipal}:</span>
-              <span className="font-semibold text-slate-700 dark:text-slate-300">
-                {formatVal(summary.totalPurchaseJpy)}
-              </span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span>{t.totalPrincipal}:</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300">
+                  {formatVal(summary.totalPurchaseJpy)}
+                </span>
+              </div>
+              {summary.totalWithdrawnJpy && summary.totalWithdrawnJpy > 0 ? (
+                <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-500" title="過去に一部解約・出金した元本および利益">
+                  {lang === 'ko' ? `과거출금: ${formatVal(summary.totalWithdrawnJpy)}` : `過去出金: ${formatVal(summary.totalWithdrawnJpy)}`}
+                </span>
+              ) : null}
             </div>
           )}
         </div>
@@ -106,7 +113,14 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
             </span>
           </div>
           <div className="mt-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-            <span className="text-slate-500 dark:text-slate-400">{lang === 'ko' ? '수익률:' : '運用利回り:'}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 dark:text-slate-400">{lang === 'ko' ? '수익률:' : '運用利回り:'}</span>
+              {summary.totalRealizedGainJpy && summary.totalRealizedGainJpy > 0 ? (
+                <span className="text-[10px] text-slate-400" title="含み益＋売却確定利益の通算">
+                  ({lang === 'ko' ? '통산:' : '通算:'} {formatVal(summary.totalCumulativeReturnJpy || summary.totalGainLossJpy, true)})
+                </span>
+              ) : null}
+            </div>
             <span
               className={`font-bold px-2 py-0.5 rounded-full ${
                 isPositive

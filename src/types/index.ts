@@ -1,6 +1,6 @@
 export type Currency = 'JPY' | 'USD' | 'EUR' | 'GBP' | 'AUD' | 'OTHER';
 
-export type AccountType = 'brokerage' | 'bank' | 'crypto' | 'other';
+export type AccountType = 'brokerage' | 'bank' | 'crypto_wallet' | 'other';
 
 export interface Account {
   id: string;
@@ -11,14 +11,14 @@ export interface Account {
 }
 
 export type AssetCategory =
-  | 'foreign_equity_fund'  // 海外株式投信（オルカン、S&P500等）
-  | 'foreign_bond_fund'    // 海外債券投信
-  | 'domestic_equity'      // 国内株式
-  | 'domestic_fund'        // 国内投信
-  | 'crypto'               // 暗号資産
-  | 'cash_jpy'             // 日本円現金・預金
-  | 'cash_foreign'         // 外貨預金・MMF
-  | 'other';               // その他
+  | 'foreign_equity_fund' // 海外株式投信 (FANG+/Zテック/S&P500等)
+  | 'foreign_bond_fund'   // 海外債券投信 (為替ヘッジあり/なし)
+  | 'domestic_equity'     // 国内株式
+  | 'domestic_fund'       // 国内投信
+  | 'crypto'              // 暗号資産
+  | 'cash_jpy'            // 日本円 現金・預金・待機資金
+  | 'cash_foreign'        // 外貨預金・MMF
+  | 'other';              // その他
 
 export interface AssetHolding {
   id: string;
@@ -27,13 +27,19 @@ export interface AssetHolding {
   category: AssetCategory;
   baseCurrency: Currency;   // 原資産の通貨（例: USD）
   hasFxHedge: boolean;      // 為替ヘッジあり/なし
-  purchaseAmountJpy: number;// 投資元本（円）
+  purchaseAmountJpy: number;// 現在の残存投資元本（円）
   purchaseFxRate: number;   // 購入時の平均為替レート（例: 1ドル=138.5円）
   currentValJpy: number;    // 現在の評価額（円）
   
+  // 途中売却・一部解約・出金および公式利回りの考慮
+  withdrawnAmountJpy?: number;   // 途中売却・出金した金額（元本回収＋利確分）
+  realizedGainJpy?: number;       // 売却済みの確定利益（円）
+  officialReturnPercent?: number; // 証券会社表示のトータルリターン率（%）
+
   // 公開Webデータ連携用プロパティ
   fundCode?: string;        // 投信コード/ETFコード (例: '04311181')
   units?: number;           // 保有口数 (または株数)
+  averageCostPrice?: number;// 基準価額ベースの平均取得単価 (円)
   latestNavPrice?: number;  // 取得した最新基準価額 (円)
   dailyChangeVal?: number;  // 公式公表前日比 (円)
   dailyChangePct?: number;  // 公式公表前日比 (%)
@@ -93,6 +99,11 @@ export interface PortfolioSummary {
   totalCurrentValJpy: number;    // 現在の総評価額（円）
   totalGainLossJpy: number;      // 総損益（円）
   totalGainLossPercent: number;  // 総損益率（%）
+  
+  // 途中売却・出金考慮の通算リターン
+  totalWithdrawnJpy?: number;        // 途中売却・出金した累計額
+  totalRealizedGainJpy?: number;     // 確定実現利益の累計額
+  totalCumulativeReturnJpy?: number; // 通算トータルリターン額 (含み益 + 確定利益)
   
   // 為替分解（海外資産・ヘッジなし対象）
   assetGrowthGainJpy: number;    // 原資産成長（株高等）による損益（円）

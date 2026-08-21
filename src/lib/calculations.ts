@@ -18,6 +18,12 @@ export interface HoldingAnalysis {
   gainLossJpy: number;
   gainLossPercent: number;
   
+  // 途中売却・出金考慮プロパティ
+  withdrawnAmountJpy: number;
+  realizedGainJpy: number;
+  totalCumulativeGainJpy: number; // 通算トータルリターン額 (含み益 + 確定利益)
+  hasWithdrawal: boolean;         // 途中売却・出金があったか
+
   // 外貨建て分析
   isForeignUnhedged: boolean;
   currFxRate: number;
@@ -40,7 +46,7 @@ export interface HoldingAnalysis {
 }
 
 /**
- * 個別銘柄の損益と為替要因の分解計算
+ * 個別銘柄の損益と為替要因の分解計算 (途中売却・出金考慮)
  */
 export function analyzeHolding(
   holding: AssetHolding,
@@ -55,8 +61,30 @@ export function analyzeHolding(
 
   const currentValJpy = holding.currentValJpy;
   const purchaseAmountJpy = holding.purchaseAmountJpy;
+  const withdrawnAmountJpy = holding.withdrawnAmountJpy || 0;
+  const realizedGainJpy = holding.realizedGainJpy || 0;
+
+  // 1. 現在保有分の含み損益
   const gainLossJpy = currentValJpy - purchaseAmountJpy;
-  const gainLossPercent = purchaseAmountJpy > 0 ? (gainLossJpy / purchaseAmountJpy) * 100 : 0;
+
+  // 2. 利益率（%）の正確な算出
+  // 優先順位:
+  // (a) officialReturnPercent が明示されている場合
+  // (b) 基準価額と平均取得単価がある場合: ((latestNavPrice - averageCostPrice) / averageCostPrice) * 100
+  // (c) purchaseAmountJpy > 0 の場合: (gainLossJpy / purchaseAmountJpy) * 100
+  let gainLossPercent = 0;
+  if (holding.officialReturnPercent !== undefined) {
+    gainLossPercent = holding.officialReturnPercent;
+  } else if (holding.averageCostPrice && holding.latestNavPrice && holding.averageCostPrice > 0) {
+    gainLossPercent =
+      ((holding.latestNavPrice - holding.averageCostPrice) / holding.averageCostPrice) * 100;
+  } else if (purchaseAmountJpy > 0) {
+    gainLossPercent = (gainLossJpy / purchaseAmountJpy) * 100;
+  }
+
+  // 通算トータルリターン（含み益 + 確定利益）
+  const totalCumulativeGainJpy = gainLossJpy + realizedGainJpy;
+  const hasWithdrawal = withdrawnAmountJpy > 0 || realizedGainJpy > 0;
 
   // 為替変動の影響を受けるか（海外資産かつ為替ヘッジなし）
   const isForeignUnhedged = categoryConfig.isForeign && !holding.hasFxHedge;
@@ -119,6 +147,10 @@ export function analyzeHolding(
     currentValJpy,
     gainLossJpy,
     gainLossPercent,
+    withdrawnAmountJpy,
+    realizedGainJpy,
+    totalCumulativeGainJpy,
+    hasWithdrawal,
     isForeignUnhedged,
     currFxRate,
     currentValForeign,
@@ -147,7 +179,7 @@ export function getProductGrouping(holding: AssetHolding): { key: string; name: 
       color: '#6366F1', // Indigo
     };
   }
-  if (name.includes('東京海上') || name.includes('外国株式') || name.includes('외국주식') || holding.fundCode === '49313104') {
+  if (name.includes('東京海上') || name.includes('外国株式') || name.includes('외国주식') || holding.fundCode === '49313104') {
     return {
       key: 'tokyomarine_foreign',
       name: '東京海上セレクション・外国株式インデックス (401k)',
@@ -220,6 +252,8 @@ export function calculatePortfolio(
 
   let totalPurchaseJpy = 0;
   let totalCurrentValJpy = 0;
+  let totalWithdrawnJpy = 0;
+  let totalRealizedGainJpy = 0;
   let assetGrowthGainJpy = 0;
   let fxGainJpy = 0;
   let synergyGainJpy = 0;
@@ -237,6 +271,8 @@ export function calculatePortfolio(
   analyzedHoldings.forEach((item) => {
     totalPurchaseJpy += item.holding.purchaseAmountJpy;
     totalCurrentValJpy += item.currentValJpy;
+    totalWithdrawnJpy += item.withdrawnAmountJpy;
+    totalRealizedGainJpy += item.realizedGainJpy;
     simulatedTotalValJpy += item.simulatedValJpy;
 
     assetGrowthGainJpy += item.assetGrowthGainJpy;
@@ -285,6 +321,7 @@ export function calculatePortfolio(
   const totalGainLossJpy = totalCurrentValJpy - totalPurchaseJpy;
   const totalGainLossPercent =
     totalPurchaseJpy > 0 ? (totalGainLossJpy / totalPurchaseJpy) * 100 : 0;
+  const totalCumulativeReturnJpy = totalGainLossJpy + totalRealizedGainJpy;
   const simulatedDiffJpy = simulatedTotalValJpy - totalCurrentValJpy;
 
   const summary: PortfolioSummary = {
@@ -292,6 +329,9 @@ export function calculatePortfolio(
     totalCurrentValJpy,
     totalGainLossJpy,
     totalGainLossPercent,
+    totalWithdrawnJpy,
+    totalRealizedGainJpy,
+    totalCumulativeReturnJpy,
     assetGrowthGainJpy,
     fxGainJpy,
     synergyGainJpy,

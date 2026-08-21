@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Account, AssetHolding, AssetCategory, Currency, ExchangeRates } from '@/types';
 import { CATEGORY_CONFIG, CURRENCY_CONFIG } from '@/lib/constants';
 import { getRateForCurrency } from '@/lib/calculations';
-import { X, HelpCircle, AlertCircle } from 'lucide-react';
+import { X, HelpCircle, AlertCircle, TrendingUp, DollarSign, Wallet } from 'lucide-react';
 
 interface HoldingModalProps {
   isOpen: boolean;
@@ -33,6 +33,11 @@ export const HoldingModal: React.FC<HoldingModalProps> = ({
   const [currentValJpy, setCurrentValJpy] = useState('');
   const [notes, setNotes] = useState('');
 
+  // 途中売却・出金・証券口座表示利回りの調整項目
+  const [officialReturnPercent, setOfficialReturnPercent] = useState('');
+  const [withdrawnAmountJpy, setWithdrawnAmountJpy] = useState('');
+  const [realizedGainJpy, setRealizedGainJpy] = useState('');
+
   useEffect(() => {
     if (editingHolding) {
       setName(editingHolding.name);
@@ -44,6 +49,18 @@ export const HoldingModal: React.FC<HoldingModalProps> = ({
       setPurchaseFxRate(editingHolding.purchaseFxRate.toString());
       setCurrentValJpy(editingHolding.currentValJpy.toString());
       setNotes(editingHolding.notes || '');
+
+      setOfficialReturnPercent(
+        editingHolding.officialReturnPercent !== undefined
+          ? editingHolding.officialReturnPercent.toString()
+          : ''
+      );
+      setWithdrawnAmountJpy(
+        editingHolding.withdrawnAmountJpy ? editingHolding.withdrawnAmountJpy.toString() : ''
+      );
+      setRealizedGainJpy(
+        editingHolding.realizedGainJpy ? editingHolding.realizedGainJpy.toString() : ''
+      );
     } else {
       setName('');
       setAccountId(accounts[0]?.id || '');
@@ -54,6 +71,9 @@ export const HoldingModal: React.FC<HoldingModalProps> = ({
       setPurchaseFxRate(currentRates.USD.toString());
       setCurrentValJpy('');
       setNotes('');
+      setOfficialReturnPercent('');
+      setWithdrawnAmountJpy('');
+      setRealizedGainJpy('');
     }
   }, [editingHolding, isOpen, accounts, currentRates]);
 
@@ -83,6 +103,9 @@ export const HoldingModal: React.FC<HoldingModalProps> = ({
       purchaseAmountJpy: parseFloat(purchaseAmountJpy) || 0,
       purchaseFxRate: parseFloat(purchaseFxRate) || getRateForCurrency(baseCurrency, currentRates),
       currentValJpy: parseFloat(currentValJpy) || 0,
+      officialReturnPercent: officialReturnPercent !== '' ? parseFloat(officialReturnPercent) : undefined,
+      withdrawnAmountJpy: withdrawnAmountJpy !== '' ? parseFloat(withdrawnAmountJpy) : undefined,
+      realizedGainJpy: realizedGainJpy !== '' ? parseFloat(realizedGainJpy) : undefined,
       notes: notes.trim(),
       updatedAt: new Date().toISOString(),
     };
@@ -93,11 +116,9 @@ export const HoldingModal: React.FC<HoldingModalProps> = ({
 
   if (!isOpen) return null;
 
-  const isForeign = CATEGORY_CONFIG[category].isForeign && baseCurrency !== 'JPY';
-
   return (
     <div onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto cursor-pointer">
-      <div onClick={(e) => e.stopPropagation()} className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 my-8 cursor-default">
+      <div onClick={(e) => e.stopPropagation()} className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 my-8 cursor-default max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
           <h3 className="text-base font-bold text-slate-900 dark:text-white">
             {editingHolding ? '資産・銘柄の編集' : '新しい資産・銘柄を追加'}
@@ -228,7 +249,7 @@ export const HoldingModal: React.FC<HoldingModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                投資元本 (円建て購入額) <span className="text-rose-500">*</span>
+                現在の残存元本 (円建て購入額) <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-slate-400 font-bold">¥</span>
@@ -245,7 +266,7 @@ export const HoldingModal: React.FC<HoldingModalProps> = ({
 
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                現在の評価額 (円) <span className="text-rose-500">*</span>
+                現在の保有評価額 (円) <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-slate-400 font-bold">¥</span>
@@ -261,6 +282,59 @@ export const HoldingModal: React.FC<HoldingModalProps> = ({
             </div>
           </div>
 
+          {/* Special Section: 途中売却・出金（利確）＆ 証券口座表示利回りの調整 */}
+          <div className="bg-amber-50/60 dark:bg-amber-950/20 p-3.5 rounded-xl border border-amber-200/70 dark:border-amber-900/40 space-y-2.5">
+            <div className="flex items-center gap-1.5 text-amber-900 dark:text-amber-300 font-bold">
+              <TrendingUp className="w-4 h-4 text-amber-600" />
+              <span>途中売却・出金（取り崩し）と運用利回りの調整（任意）</span>
+            </div>
+            <p className="text-[11px] text-amber-950/80 dark:text-amber-300/80 leading-relaxed">
+              💡 途中で一部売却・出金した銘柄の場合、証券会社では売却後も元の平均取得単価に基づく利回り（%）が表示されます。手元の残存元本と、過去に出金した金額を個別に記録することで、金額と利回り%の乖離を解消できます。
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+              <div>
+                <label className="block text-slate-600 dark:text-slate-300 mb-1 font-semibold">
+                  証券会社表示の利回り (%)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="例: 170.82"
+                  value={officialReturnPercent}
+                  onChange={(e) => setOfficialReturnPercent(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white text-xs outline-none font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-600 dark:text-slate-300 mb-1 font-semibold">
+                  過去の売却・出金額 (円)
+                </label>
+                <input
+                  type="number"
+                  placeholder="例: 800000"
+                  value={withdrawnAmountJpy}
+                  onChange={(e) => setWithdrawnAmountJpy(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white text-xs outline-none font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-600 dark:text-slate-300 mb-1 font-semibold">
+                  売却済みの確定利益 (円)
+                </label>
+                <input
+                  type="number"
+                  placeholder="例: 504000"
+                  value={realizedGainJpy}
+                  onChange={(e) => setRealizedGainJpy(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white text-xs outline-none font-mono"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Notes */}
           <div>
             <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -268,7 +342,7 @@ export const HoldingModal: React.FC<HoldingModalProps> = ({
             </label>
             <input
               type="text"
-              placeholder="例: 新NISAつみたて枠で月5万円積立中"
+              placeholder="例: 旧NISA満了に伴い毎月取り崩し中。通算利回り+170.82%"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white text-xs outline-none"

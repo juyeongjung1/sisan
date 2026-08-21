@@ -279,13 +279,28 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                     >
                       {formatVal(item.gainLossJpy, true)}
                     </div>
-                    <span
-                      className={`text-[10px] font-medium block ${
-                        isGainPositive ? 'text-emerald-500' : 'text-rose-500'
-                      }`}
-                    >
-                      {formatPercent(item.gainLossPercent, true)}
-                    </span>
+                    <div className="flex items-center justify-end gap-1 flex-wrap mt-0.5">
+                      <span
+                        className={`text-[10px] font-bold ${
+                          item.gainLossPercent >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                        }`}
+                      >
+                        {formatPercent(item.gainLossPercent, true)}
+                      </span>
+                      {item.hasWithdrawal && (
+                        <span
+                          className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 text-[9px] px-1 py-0.2 rounded font-bold"
+                          title={`過去に一部売却・出金あり (出金累計: ${formatVal(item.withdrawnAmountJpy)} / 通算利益: ${formatVal(item.totalCumulativeGainJpy, true)})`}
+                        >
+                          {lang === 'ko' ? '일부출금' : '一部出金'}
+                        </span>
+                      )}
+                    </div>
+                    {item.hasWithdrawal && (
+                      <span className="text-[9px] text-slate-400 block" title="含み益＋売却確定益の通算">
+                        {lang === 'ko' ? `통산: ${formatVal(item.totalCumulativeGainJpy, true)}` : `通算: ${formatVal(item.totalCumulativeGainJpy, true)}`}
+                      </span>
+                    )}
                   </td>
 
                   {/* FX vs Asset Breakdown */}
@@ -456,16 +471,28 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
               <div className="bg-white dark:bg-slate-900/60 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700/70 text-xs">
                 <div className="flex items-center justify-between font-bold">
                   <span className="text-slate-600 dark:text-slate-300">{t.colGain}:</span>
-                  <span
-                    className={
-                      isGainPositive
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : 'text-rose-600 dark:text-rose-400'
-                    }
-                  >
-                    {formatVal(item.gainLossJpy, true)} (
-                    {formatPercent(item.gainLossPercent, true)})
-                  </span>
+                  <div className="text-right">
+                    <span
+                      className={
+                        isGainPositive
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-rose-600 dark:text-rose-400'
+                      }
+                    >
+                      {formatVal(item.gainLossJpy, true)} (
+                      {formatPercent(item.gainLossPercent, true)})
+                    </span>
+                    {item.hasWithdrawal && (
+                      <div className="flex items-center justify-end gap-1 mt-0.5">
+                        <span className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 text-[9px] px-1.5 py-0.2 rounded font-bold">
+                          {lang === 'ko' ? '일부출금' : '一部出金'}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {lang === 'ko' ? `통산: ${formatVal(item.totalCumulativeGainJpy, true)}` : `通算: ${formatVal(item.totalCumulativeGainJpy, true)}`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {item.isForeignUnhedged && (
