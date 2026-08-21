@@ -95,17 +95,16 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
   const latestDailyDiffVal = endPoint?.dailyDiffVal || 0;
   const latestDailyDiffPercent = endPoint?.dailyDiffPercent || 0;
 
-  // 期間中の最高値・最安値
-  const maxVal = enrichedChartData.length > 0 ? Math.max(...enrichedChartData.map((d) => d.currentValJpy)) : 0;
-  const minVal = enrichedChartData.length > 0 ? Math.min(...enrichedChartData.map((d) => d.currentValJpy)) : 0;
-
-  const timeframeLabels: { key: TimeframeOption; label: string; desc: string }[] = [
-    { key: 'day', label: '日 (7日)', desc: '直近1週間の日次推移' },
-    { key: 'week', label: '週 (4週)', desc: '直近1ヶ月の週次推移' },
-    { key: 'month', label: '月 (1年)', desc: '直近12ヶ月の月次推移' },
-    { key: 'year', label: '年 (3年)', desc: '直近3年間の推移' },
-    { key: 'all', label: '全期間', desc: '投資開始からの全推移' },
+  // 期間ラベルの取得
+  const timeframeLabels: { key: TimeframeOption; label: string; periodText: string; desc: string }[] = [
+    { key: 'day', label: '日 (7日)', periodText: '直近7日間の通算', desc: '直近7日間の日次推移' },
+    { key: 'week', label: '週 (4週)', periodText: '直近4週間の通算', desc: '直近1ヶ月の週次推移' },
+    { key: 'month', label: '月 (1年)', periodText: '直近1年間の通算', desc: '直近12ヶ月の月次推移' },
+    { key: 'year', label: '年 (3年)', periodText: '直近3年間の通算', desc: '直近3年間の推移' },
+    { key: 'all', label: '全期間', periodText: '全運用期間の通算', desc: '投資開始からの全推移' },
   ];
+
+  const currentTfConfig = timeframeLabels.find((t) => t.key === timeframe) || timeframeLabels[0];
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
@@ -131,7 +130,7 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
 
           {/* 前日比・日次変動率 */}
           <div className="flex justify-between items-center bg-slate-800/80 px-2 py-1 rounded-lg">
-            <span className="text-slate-300 font-medium">前日比(変動率):</span>
+            <span className="text-slate-300 font-medium">前日比 (1日変動):</span>
             <span
               className={`font-bold ${
                 data.dailyDiffVal >= 0 ? 'text-emerald-400' : 'text-rose-400'
@@ -184,7 +183,7 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
                 商品別・期間別（日/週/月/年）資産推移分析
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                日次変動率（前日比%）とトータル損益推移の精密トラッカー
+                実際の運用期間（レバナス5年・FANG+/Zテック2年等）に連動した推移トラッカー
               </p>
             </div>
           </div>
@@ -247,9 +246,9 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
         </div>
       </div>
 
-      {/* 4 Performance Metric Cards */}
+      {/* 4 Performance Metric Cards with Clear Meaning */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-        {/* Current Val */}
+        {/* Card 1: Current Val */}
         <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
           <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
             現在評価額
@@ -262,10 +261,10 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
           </span>
         </div>
 
-        {/* Latest Daily Change (前日比) */}
+        {/* Card 2: Latest 1-Day Change (前日比: 昨日との差) */}
         <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
           <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
-            最新の前日比 (1日の変動)
+            前日比（昨日からの1日変動）
           </span>
           <div
             className={`text-xl font-extrabold mt-0.5 flex items-center gap-1 ${
@@ -286,14 +285,14 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
               latestDailyDiffVal >= 0 ? 'text-emerald-500' : 'text-rose-500'
             }`}
           >
-            {formatPercent(latestDailyDiffPercent, true)} (前日比)
+            {formatPercent(latestDailyDiffPercent, true)} (1日比)
           </span>
         </div>
 
-        {/* Period Total Gain/Change */}
+        {/* Card 3: Selected Period Cumulative Change (選択期間の通算増減) */}
         <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
           <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
-            選択期間全体の増減
+            {currentTfConfig.periodText}の増減
           </span>
           <div
             className={`text-xl font-extrabold mt-0.5 flex items-center gap-1 ${
@@ -302,6 +301,11 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
                 : 'text-rose-600 dark:text-rose-400'
             }`}
           >
+            {periodDiffVal >= 0 ? (
+              <ArrowUpRight className="w-5 h-5" />
+            ) : (
+              <ArrowDownRight className="w-5 h-5" />
+            )}
             <span>{formatCurrencyJpy(periodDiffVal, true)}</span>
           </div>
           <span
@@ -309,11 +313,11 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
               periodDiffVal >= 0 ? 'text-emerald-500' : 'text-rose-500'
             }`}
           >
-            {formatPercent(periodDiffPercent, true)} (期間全体)
+            {formatPercent(periodDiffPercent, true)} ({startPoint?.date.slice(5)} ➔ {endPoint?.date.slice(5)})
           </span>
         </div>
 
-        {/* FX Rate in Period */}
+        {/* Card 4: FX Rate in Period */}
         <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
           <div className="flex items-center justify-between">
             <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
@@ -330,7 +334,7 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
             </label>
           </div>
           <div className="text-base font-bold text-amber-500 dark:text-amber-400 mt-1">
-            ¥{startPoint?.fxRateUsd?.toFixed(1) || '130.0'} ➔ ¥
+            ¥{startPoint?.fxRateUsd?.toFixed(1) || '110.0'} ➔ ¥
             {endPoint?.fxRateUsd?.toFixed(1) || '153.5'}
           </div>
           <span className="text-[10px] text-slate-400 block mt-0.5">
@@ -436,7 +440,7 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
             </span>
           </span>
           <span className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold lowercase">
-            ※ 前日比（日次変動率）とトータル損益を両方確認できます
+            ※ 前日比（1日変動率）とトータル損益を両方確認できます
           </span>
         </h3>
 
@@ -447,7 +451,7 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
                 <th className="py-2.5 px-3">日付</th>
                 <th className="py-2.5 px-3 text-right">評価額 (円)</th>
                 <th className="py-2.5 px-3 text-right bg-blue-50/50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 font-bold">
-                  前日比 (変動率 %)
+                  前日比 (1日の変動)
                 </th>
                 <th className="py-2.5 px-3 text-right">投資元本 (円)</th>
                 <th className="py-2.5 px-3 text-right">トータル損益 (全体率 %)</th>
