@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Account, AssetHolding, AssetCategory } from '@/types';
-import { HoldingAnalysis, formatCurrencyJpy, formatPercent } from '@/lib/calculations';
+import { HoldingAnalysis, formatCurrencyJpy, formatPercent, getProductGrouping } from '@/lib/calculations';
 import { CATEGORY_CONFIG, CURRENCY_CONFIG } from '@/lib/constants';
 import {
   Language,
@@ -20,6 +20,7 @@ import {
   Repeat,
   Info,
   Radio,
+  Sparkles,
 } from 'lucide-react';
 
 interface HoldingsTableProps {
@@ -28,6 +29,7 @@ interface HoldingsTableProps {
   onOpenAddModal: () => void;
   onEditHolding: (holding: AssetHolding) => void;
   onDeleteHolding: (id: string) => void;
+  onSelectProduct?: (productKey: string, productName: string, amountJpy?: number) => void;
   lang?: Language;
   isMasked?: boolean;
 }
@@ -38,6 +40,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
   onOpenAddModal,
   onEditHolding,
   onDeleteHolding,
+  onSelectProduct,
   lang = 'ja',
   isMasked = false,
 }) => {
@@ -155,7 +158,18 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                   {/* Name & Category */}
                   <td className="py-3 pl-2 max-w-sm">
                     <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
-                      <span>{translateHoldingName(h.name, lang)}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const group = getProductGrouping(h);
+                          onSelectProduct?.(group.key, h.name, item.currentValJpy);
+                        }}
+                        className="hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline text-left flex items-center gap-1 transition"
+                        title={lang === 'ko' ? '클릭하여 구성종목 보기' : 'クリックして構成銘柄を確認'}
+                      >
+                        <span>{translateHoldingName(h.name, lang)}</span>
+                        <Sparkles className="w-3 h-3 text-indigo-500 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
                       {item.recurringPlan && (
                         <span
                           className="bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 text-[10px] px-1.5 py-0.5 rounded border border-emerald-500/30 flex items-center gap-0.5 shrink-0 font-medium"
@@ -341,7 +355,17 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                     </span>
                   </div>
                   <h3 className="font-bold text-sm text-slate-900 dark:text-white mt-0.5">
-                    {translateHoldingName(h.name, lang)}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const group = getProductGrouping(h);
+                        onSelectProduct?.(group.key, h.name, item.currentValJpy);
+                      }}
+                      className="hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline text-left flex items-center gap-1 transition"
+                    >
+                      <span>{translateHoldingName(h.name, lang)}</span>
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                    </button>
                   </h3>
                 </div>
 

@@ -50,6 +50,7 @@ import { RecurringModal } from '@/components/RecurringModal';
 import { AccountModal } from '@/components/AccountModal';
 import { BackupModal } from '@/components/BackupModal';
 import { CustomRateModal } from '@/components/CustomRateModal';
+import { FundConstituentsModal } from '@/components/FundConstituentsModal';
 
 import {
   LayoutDashboard,
@@ -94,6 +95,33 @@ export default function DashboardPage() {
   const [isAccountModalOpen, setIsAccountModalOpen] = useState<boolean>(false);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState<boolean>(false);
   const [isCustomRateModalOpen, setIsCustomRateModalOpen] = useState<boolean>(false);
+
+  // 構成銘柄詳細ポップアップモーダル
+  const [selectedFundModal, setSelectedFundModal] = useState<{
+    isOpen: boolean;
+    fundKey: string | null;
+    productName?: string;
+    amountJpy?: number;
+    percentage?: number;
+  }>({
+    isOpen: false,
+    fundKey: null,
+  });
+
+  const handleOpenConstituentsModal = (
+    productKey: string,
+    productName: string,
+    amountJpy?: number,
+    percentage?: number
+  ) => {
+    setSelectedFundModal({
+      isOpen: true,
+      fundKey: productKey,
+      productName,
+      amountJpy,
+      percentage,
+    });
+  };
 
   // スマホ用アクティブタブ
   const [mobileTab, setMobileTab] = useState<'dashboard' | 'contribution' | 'history' | 'simulator' | 'recurring' | 'holdings'>('dashboard');
@@ -455,6 +483,7 @@ export default function DashboardPage() {
               categoryAllocations={categoryAllocations}
               accountAllocations={accountAllocations}
               productAllocations={productAllocations}
+              onSelectProduct={handleOpenConstituentsModal}
               lang={lang}
               isMasked={isMasked}
             />
@@ -498,6 +527,7 @@ export default function DashboardPage() {
                 setIsHoldingModalOpen(true);
               }}
               onDeleteHolding={handleDeleteHolding}
+              onSelectProduct={handleOpenConstituentsModal}
               lang={lang}
               isMasked={isMasked}
             />
@@ -629,6 +659,18 @@ export default function DashboardPage() {
           setExchangeRates(rates);
           setSimulatedUsdRate(rates.USD);
         }}
+      />
+
+      {/* Fund Constituents & Holdings Breakdown Modal */}
+      <FundConstituentsModal
+        isOpen={selectedFundModal.isOpen}
+        onClose={() => setSelectedFundModal({ isOpen: false, fundKey: null })}
+        fundKey={selectedFundModal.fundKey}
+        productName={selectedFundModal.productName}
+        productAmountJpy={selectedFundModal.amountJpy}
+        productPercentage={selectedFundModal.percentage}
+        lang={lang}
+        isMasked={isMasked}
       />
     </div>
   );
