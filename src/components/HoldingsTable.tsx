@@ -12,6 +12,7 @@ import {
   Globe,
   Repeat,
   Info,
+  Radio,
 } from 'lucide-react';
 
 interface HoldingsTableProps {
@@ -54,7 +55,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
             </span>
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            口座ごとの銘柄詳細・為替と株価の損益分解
+            口座ごとの銘柄詳細・3時間毎の公表基準価額連動
           </p>
         </div>
 
@@ -112,7 +113,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
               <th className="pb-3">口座</th>
               <th className="pb-3 text-right">投資元本 (円)</th>
               <th className="pb-3 text-right">購入時レート</th>
-              <th className="pb-3 text-right">現在評価額 (円)</th>
+              <th className="pb-3 text-right">現在評価額 / 公表基準価額</th>
               <th className="pb-3 text-right">トータル損益</th>
               <th className="pb-3 text-right">為替要因 / 株価要因</th>
               <th className="pb-3 text-center pr-2">操作</th>
@@ -140,7 +141,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                           title={`毎月${item.recurringPlan.dayOfMonth}日に${formatCurrencyJpy(item.recurringPlan.monthlyAmountJpy)}積立中`}
                         >
                           <Repeat className="w-2.5 h-2.5" />
-                          <span>毎月{item.recurringPlan.dayOfMonth}日 {formatCurrencyJpy(item.recurringPlan.monthlyAmountJpy)}積立中</span>
+                          <span>毎月{item.recurringPlan.dayOfMonth}日 {formatCurrencyJpy(item.recurringPlan.monthlyAmountJpy)}積立</span>
                         </span>
                       )}
                     </div>
@@ -161,6 +162,11 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                           🛡️ 為替ヘッジあり
                         </span>
                       ) : null}
+                      {h.fundCode && (
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          [{h.fundCode}]
+                        </span>
+                      )}
                     </div>
                     {h.notes && (
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 bg-slate-100/60 dark:bg-slate-800/50 px-2 py-0.5 rounded flex items-center gap-1">
@@ -202,9 +208,29 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                     )}
                   </td>
 
-                  {/* Current Value */}
-                  <td className="py-3 text-right font-bold text-slate-900 dark:text-white">
-                    {formatCurrencyJpy(h.currentValJpy)}
+                  {/* Current Value & Live Web NAV Price */}
+                  <td className="py-3 text-right">
+                    <div className="font-bold text-slate-900 dark:text-white text-sm">
+                      {formatCurrencyJpy(h.currentValJpy)}
+                    </div>
+                    {h.latestNavPrice ? (
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 flex items-center justify-end gap-1">
+                        <Radio className="w-2.5 h-2.5 text-emerald-500 animate-pulse" />
+                        <span>基準値: ¥{h.latestNavPrice.toLocaleString()}</span>
+                        {h.dailyChangePct !== undefined && (
+                          <span
+                            className={
+                              h.dailyChangePct >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                            }
+                          >
+                            ({h.dailyChangePct >= 0 ? '+' : ''}
+                            {h.dailyChangePct}%)
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-slate-400">固定/現金</span>
+                    )}
                   </td>
 
                   {/* Total Gain/Loss */}
@@ -334,6 +360,19 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                   </span>
                 )}
               </div>
+
+              {/* Live Web NAV Price info */}
+              {h.latestNavPrice && (
+                <div className="flex items-center gap-2 text-[11px] bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                  <Radio className="w-3 h-3 text-emerald-500 animate-pulse" />
+                  <span>公表基準価額: <strong>¥{h.latestNavPrice.toLocaleString()}</strong></span>
+                  {h.dailyChangePct !== undefined && (
+                    <span className={h.dailyChangePct >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                      (前日比 {h.dailyChangePct >= 0 ? '+' : ''}{h.dailyChangePct}%)
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* Notes */}
               {h.notes && (

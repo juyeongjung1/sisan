@@ -30,6 +30,14 @@ export interface AssetHolding {
   purchaseAmountJpy: number;// 投資元本（円）
   purchaseFxRate: number;   // 購入時の平均為替レート（例: 1ドル=138.5円）
   currentValJpy: number;    // 現在の評価額（円）
+  
+  // 公開Webデータ連携用プロパティ
+  fundCode?: string;        // 投信コード/ETFコード (例: '04311181')
+  units?: number;           // 保有口数 (または株数)
+  latestNavPrice?: number;  // 取得した最新基準価額 (円)
+  dailyChangeVal?: number;  // 公式公表前日比 (円)
+  dailyChangePct?: number;  // 公式公表前日比 (%)
+
   notes?: string;
   updatedAt: string;
 }
@@ -66,7 +74,7 @@ export interface HoldingHistoryPoint {
   currentValJpy: number;     // その時点の評価額 (円)
   purchaseAmountJpy: number; // その時点の投資元本 (円)
   fxRateUsd?: number;        // その時点の為替レート (USD/JPY)
-  notes?: string;            // イベント（例: 「36,000円積立実行」「ボーナス買付」等）
+  notes?: string;            // イベント
 }
 
 export type TimeframeOption = 'day' | 'week' | 'month' | 'year' | 'all';

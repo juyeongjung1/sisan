@@ -2,12 +2,15 @@
 
 import React from 'react';
 import { ExchangeRates } from '@/types';
-import { RefreshCw, Plus, Database, DollarSign, TrendingUp, LineChart } from 'lucide-react';
+import { RefreshCw, Plus, Database, DollarSign, TrendingUp, LineChart, Globe } from 'lucide-react';
 
 interface HeaderProps {
   exchangeRates: ExchangeRates;
   isFetchingRates: boolean;
+  isFetchingFunds?: boolean;
+  lastFundSyncTime?: string | null;
   onRefreshRates: () => void;
+  onRefreshFunds?: () => void;
   onOpenAddModal: () => void;
   onOpenAccountModal: () => void;
   onOpenBackupModal: () => void;
@@ -18,7 +21,10 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   exchangeRates,
   isFetchingRates,
+  isFetchingFunds,
+  lastFundSyncTime,
   onRefreshRates,
+  onRefreshFunds,
   onOpenAddModal,
   onOpenAccountModal,
   onOpenBackupModal,
@@ -38,14 +44,18 @@ export const Header: React.FC<HeaderProps> = ({
               <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent">
                 資産管理ダッシュボード
               </h1>
-              <p className="text-xs text-slate-400">
-                分散投資 & 為替要因・資産成長一元可視化システム
-              </p>
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <span>分散投資 & 為替要因・資産成長一元可視化</span>
+                <span className="hidden sm:inline bg-emerald-500/20 text-emerald-300 text-[10px] px-1.5 py-0.2 rounded border border-emerald-500/30">
+                  3時間毎 基準価額自動連動
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* FX Rates Live Bar */}
+          {/* FX & Fund Live Bar */}
           <div className="flex flex-wrap items-center gap-2">
+            {/* USD/JPY Rate */}
             <div
               onClick={onOpenCustomRateModal}
               className="flex items-center gap-3 bg-slate-800/90 hover:bg-slate-800 transition-colors border border-slate-700/80 px-3 py-1.5 rounded-lg text-xs cursor-pointer group"
@@ -69,15 +79,18 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
 
-            <button
-              onClick={onRefreshRates}
-              disabled={isFetchingRates}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 hover:text-white rounded-lg text-xs border border-slate-700 transition"
-              title="為替レートを最新に更新"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isFetchingRates ? 'animate-spin text-blue-400' : ''}`} />
-              <span className="hidden sm:inline">レート更新</span>
-            </button>
+            {/* Sync Live Prices Button (Funds & FX) */}
+            {onRefreshFunds && (
+              <button
+                onClick={onRefreshFunds}
+                disabled={isFetchingFunds}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-900/40 hover:bg-blue-800/60 text-blue-200 rounded-lg text-xs border border-blue-700/50 transition font-medium disabled:opacity-50"
+                title="公表Webサイトから最新の投信基準価額・株価を今すぐ同期"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isFetchingFunds ? 'animate-spin text-blue-400' : ''}`} />
+                <span className="hidden sm:inline">投信・為替同期</span>
+              </button>
+            )}
 
             {/* Action Buttons */}
             <div className="flex items-center gap-2 ml-auto md:ml-2">

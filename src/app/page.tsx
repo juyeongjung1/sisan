@@ -21,6 +21,13 @@ import { calculatePortfolio } from '@/lib/calculations';
 import { fetchLiveExchangeRates } from '@/lib/fxApi';
 import { checkAndProcessAccumulations, executeManualAccumulation } from '@/lib/accumulation';
 import {
+  fetchLiveFundPrices,
+  syncHoldingsWithFundPrices,
+  shouldAutoSyncFunds,
+  recordFundSyncTime,
+  getLastFundSyncTime,
+} from '@/lib/fundSync';
+import {
   INITIAL_ACCOUNTS,
   INITIAL_HOLDINGS,
   INITIAL_RECURRING_PLANS,
@@ -54,6 +61,8 @@ export default function DashboardPage() {
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>(DEFAULT_EXCHANGE_RATES);
   const [simulatedUsdRate, setSimulatedUsdRate] = useState<number>(DEFAULT_EXCHANGE_RATES.USD);
   const [isFetchingRates, setIsFetchingRates] = useState<boolean>(false);
+  const [isFetchingFunds, setIsFetchingFunds] = useState<boolean>(false);
+  const [lastFundSyncTime, setLastFundSyncTime] = useState<string | null>(null);
   const [isClient, setIsClient] = useState<boolean>(false);
 
   // 自動積立通知トースト
@@ -74,7 +83,7 @@ export default function DashboardPage() {
   // スマホ用アクティブタブ
   const [mobileTab, setMobileTab] = useState<'dashboard' | 'history' | 'simulator' | 'recurring' | 'holdings'>('dashboard');
 
-  // クライアント初期化 & データ読み込み & 自動積立判定
+  // クライアント初期化 & データ読み込み & 自動積立判定 & 3時間自動投信データ同期
   useEffect(() => {
     setIsClient(true);
     const loadedAccounts = loadSavedAccounts();
@@ -83,12 +92,16 @@ export default function DashboardPage() {
     const loadedLogs = loadSavedAccumulationLogs();
     const loadedHistory = loadSavedHistoryPoints(loadedHoldings);
     const loadedRates = loadSavedRates();
+    const lastSync = getLastFundSyncTime();
+    setLastFundSyncTime(lastSync);
 
     // 日付経過による自動積立チェック
     const { hasUpdated, updatedHoldings, updatedPlans, generatedLogs } =
       checkAndProcessAccumulations(loadedHoldings, loadedPlans, new Date());
 
+    let currentHoldings = loadedHoldings;
     if (hasUpdated) {
+      currentHoldings = updatedHoldings;
       setHoldings(updatedHoldings);
       setRecurringPlans(updatedPlans);
       const newLogs = [...generatedLogs, ...loadedLogs];
@@ -110,8 +123,13 @@ export default function DashboardPage() {
     setExchangeRates(loadedRates);
     setSimulatedUsdRate(loadedRates.USD);
 
-    // 最新の為替レートを自動取得
+    // 最新の為替レートを取得
     handleRefreshRates();
+
+    // 3時間経過していれば最新の公表投信基準価額を自動取得
+    if (shouldAutoSyncFunds()) {
+      handleRefreshFundPrices(currentHoldings);
+    }
   }, []);
 
   // データ変更時のLocalStorage自動保存
@@ -156,6 +174,27 @@ export default function DashboardPage() {
       console.error(e);
     } finally {
       setIsFetchingRates(false);
+    }
+  };
+
+  // 公表Web投信基準価額の自動同期 (3時間毎 / 手動)
+  const handleRefreshFundPrices = async (targetHoldings: AssetHolding[] = holdings) => {
+    setIsFetchingFunds(true);
+    try {
+      const livePrices = await fetchLiveFundPrices();
+      if (livePrices.length > 0) {
+        const { updatedHoldings, hasChanges } = syncHoldingsWithFundPrices(targetHoldings, livePrices);
+        if (hasChanges) {
+          setHoldings(updatedHoldings);
+          saveHoldings(updatedHoldings);
+        }
+        recordFundSyncTime();
+        setLastFundSyncTime(new Date().toISOString());
+      }
+    } catch (e) {
+      console.error('Failed to sync fund prices:', e);
+    } finally {
+      setIsFetchingFunds(false);
     }
   };
 
@@ -249,7 +288,10 @@ export default function DashboardPage() {
       <Header
         exchangeRates={exchangeRates}
         isFetchingRates={isFetchingRates}
+        isFetchingFunds={isFetchingFunds}
+        lastFundSyncTime={lastFundSyncTime}
         onRefreshRates={handleRefreshRates}
+        onRefreshFunds={() => handleRefreshFundPrices(holdings)}
         onOpenAddModal={() => {
           setEditingHolding(null);
           setIsHoldingModalOpen(true);
