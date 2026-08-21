@@ -23,7 +23,6 @@ import { checkAndProcessAccumulations, executeManualAccumulation } from '@/lib/a
 import {
   fetchLiveFundPrices,
   syncHoldingsWithFundPrices,
-  shouldAutoSyncFunds,
   recordFundSyncTime,
   getLastFundSyncTime,
 } from '@/lib/fundSync';
@@ -36,9 +35,10 @@ import {
 
 import { Header } from '@/components/Header';
 import { SummaryCards } from '@/components/SummaryCards';
+import { DailyContributionAnalysis } from '@/components/DailyContributionAnalysis';
+import { HoldingPerformanceHistory } from '@/components/HoldingPerformanceHistory';
 import { FxSimulator } from '@/components/FxSimulator';
 import { AllocationsChart } from '@/components/AllocationsChart';
-import { HoldingPerformanceHistory } from '@/components/HoldingPerformanceHistory';
 import { RecurringPlanSection } from '@/components/RecurringPlanSection';
 import { HoldingsTable } from '@/components/HoldingsTable';
 
@@ -49,7 +49,16 @@ import { AccountModal } from '@/components/AccountModal';
 import { BackupModal } from '@/components/BackupModal';
 import { CustomRateModal } from '@/components/CustomRateModal';
 
-import { LayoutDashboard, Sliders, Calendar, ListChecks, LineChart, CheckCircle, X } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Zap,
+  Sliders,
+  Calendar,
+  ListChecks,
+  LineChart,
+  CheckCircle,
+  X,
+} from 'lucide-react';
 
 export default function DashboardPage() {
   // 状態管理
@@ -81,7 +90,7 @@ export default function DashboardPage() {
   const [isCustomRateModalOpen, setIsCustomRateModalOpen] = useState<boolean>(false);
 
   // スマホ用アクティブタブ
-  const [mobileTab, setMobileTab] = useState<'dashboard' | 'history' | 'simulator' | 'recurring' | 'holdings'>('dashboard');
+  const [mobileTab, setMobileTab] = useState<'dashboard' | 'contribution' | 'history' | 'simulator' | 'recurring' | 'holdings'>('dashboard');
 
   // クライアント初期化 & データ読み込み & 自動積立判定 & 3時間自動投信データ同期
   useEffect(() => {
@@ -126,7 +135,7 @@ export default function DashboardPage() {
     // 最新の為替レートを取得
     handleRefreshRates();
 
-    // 初回ロード時および3時間経過時に最新の公表投信基準価額を自動取得
+    // 最新の公表投信基準価額を自動同期
     handleRefreshFundPrices(currentHoldings);
   }, []);
 
@@ -175,7 +184,7 @@ export default function DashboardPage() {
     }
   };
 
-  // 公表Web投信基準価額の自動同期 (3時間毎 / 手動)
+  // 公表Web投信基準価額の自動同期
   const handleRefreshFundPrices = async (targetHoldings: AssetHolding[] = holdings) => {
     setIsFetchingFunds(true);
     try {
@@ -326,7 +335,12 @@ export default function DashboardPage() {
             <SummaryCards summary={summary} />
           </div>
 
-          {/* Section 2: Product Performance Trend (Day/Week/Month/Year) */}
+          {/* Section 2: Daily Contribution & US Stock Driver Analysis (NEW) */}
+          <div className={mobileTab === 'contribution' || mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
+            <DailyContributionAnalysis holdings={holdings} />
+          </div>
+
+          {/* Section 3: Product Performance Trend (Day/Week/Month/Year) */}
           <div className={mobileTab === 'history' || mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
             <HoldingPerformanceHistory
               holdings={holdings}
@@ -334,7 +348,7 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Section 3: FX Simulation Slider */}
+          {/* Section 4: FX Simulation Slider */}
           <div className={mobileTab === 'simulator' || mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
             <FxSimulator
               currentUsdRate={exchangeRates.USD}
@@ -347,7 +361,7 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Section 4: Portfolio Allocations (Currency, Category, Account) */}
+          {/* Section 5: Portfolio Allocations (Currency, Category, Account) */}
           <div className={mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
             <AllocationsChart
               currencyExposures={currencyExposures}
@@ -356,7 +370,7 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Section 5: Monthly Recurring Investment Plan */}
+          {/* Section 6: Monthly Recurring Investment Plan */}
           <div className={mobileTab === 'recurring' || mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
             <RecurringPlanSection
               recurringPlans={recurringPlans}
@@ -378,7 +392,7 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Section 6: Holdings Table */}
+          {/* Section 7: Holdings Table */}
           <div className={mobileTab === 'holdings' || mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
             <HoldingsTable
               analyzedHoldings={analyzedHoldings}
@@ -398,54 +412,64 @@ export default function DashboardPage() {
       </main>
 
       {/* Mobile Bottom Navigation Bar (Fixed for Smartphones) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 px-2 py-1.5 flex justify-around items-center">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 px-1.5 py-1.5 flex justify-around items-center">
         <button
           onClick={() => setMobileTab('dashboard')}
-          className={`flex flex-col items-center p-1 rounded-lg text-[10px] font-medium transition ${
+          className={`flex flex-col items-center p-1 rounded-lg text-[9px] font-medium transition ${
             mobileTab === 'dashboard' ? 'text-blue-400 font-bold' : 'text-slate-400'
           }`}
         >
-          <LayoutDashboard className="w-5 h-5 mb-0.5" />
+          <LayoutDashboard className="w-4 h-4 mb-0.5" />
           <span>概要</span>
         </button>
 
         <button
+          onClick={() => setMobileTab('contribution')}
+          className={`flex flex-col items-center p-1 rounded-lg text-[9px] font-medium transition ${
+            mobileTab === 'contribution' ? 'text-blue-400 font-bold' : 'text-slate-400'
+          }`}
+        >
+          <Zap className="w-4 h-4 mb-0.5" />
+          <span>要因分析</span>
+        </button>
+
+        <button
           onClick={() => setMobileTab('history')}
-          className={`flex flex-col items-center p-1 rounded-lg text-[10px] font-medium transition ${
+          className={`flex flex-col items-center p-1 rounded-lg text-[9px] font-medium transition ${
             mobileTab === 'history' ? 'text-blue-400 font-bold' : 'text-slate-400'
           }`}
         >
-          <LineChart className="w-5 h-5 mb-0.5" />
-          <span>商品推移</span>
+          <LineChart className="w-4 h-4 mb-0.5" />
+          <span>推移分析</span>
         </button>
 
         <button
           onClick={() => setMobileTab('simulator')}
-          className={`flex flex-col items-center p-1 rounded-lg text-[10px] font-medium transition ${
+          className={`flex flex-col items-center p-1 rounded-lg text-[9px] font-medium transition ${
             mobileTab === 'simulator' ? 'text-blue-400 font-bold' : 'text-slate-400'
           }`}
         >
-          <Sliders className="w-5 h-5 mb-0.5" />
+          <Sliders className="w-4 h-4 mb-0.5" />
           <span>為替試算</span>
         </button>
 
         <button
           onClick={() => setMobileTab('recurring')}
-          className={`flex flex-col items-center p-1 rounded-lg text-[10px] font-medium transition ${
+          className={`flex flex-col items-center p-1 rounded-lg text-[9px] font-medium transition ${
             mobileTab === 'recurring' ? 'text-blue-400 font-bold' : 'text-slate-400'
           }`}
         >
-          <Calendar className="w-5 h-5 mb-0.5" />
+          <Calendar className="w-4 h-4 mb-0.5" />
           <span>積立設定</span>
         </button>
 
         <button
           onClick={() => setMobileTab('holdings')}
-          className={`flex flex-col items-center p-1 rounded-lg text-[10px] font-medium transition ${
+          className={`flex flex-col items-center p-1 rounded-lg text-[9px] font-medium transition ${
             mobileTab === 'holdings' ? 'text-blue-400 font-bold' : 'text-slate-400'
           }`}
         >
-          <ListChecks className="w-5 h-5 mb-0.5" />
+          <ListChecks className="w-4 h-4 mb-0.5" />
           <span>銘柄一覧</span>
         </button>
       </nav>
