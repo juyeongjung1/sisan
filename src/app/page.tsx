@@ -26,6 +26,7 @@ import {
   recordFundSyncTime,
   getLastFundSyncTime,
 } from '@/lib/fundSync';
+import { syncHistoryWithHoldings } from '@/lib/historyGenerator';
 import {
   INITIAL_ACCOUNTS,
   INITIAL_HOLDINGS,
@@ -128,7 +129,12 @@ export default function DashboardPage() {
     }
 
     setAccounts(loadedAccounts);
-    setHistoryPoints(loadedHistory);
+
+    // 時系列データと公表前日比（dailyChangePct）を完全一致同期
+    const syncedHistory = syncHistoryWithHoldings(loadedHistory, currentHoldings);
+    setHistoryPoints(syncedHistory);
+    saveHistoryPoints(syncedHistory);
+
     setExchangeRates(loadedRates);
     setSimulatedUsdRate(loadedRates.USD);
 
@@ -194,6 +200,13 @@ export default function DashboardPage() {
         if (hasChanges) {
           setHoldings(updatedHoldings);
           saveHoldings(updatedHoldings);
+
+          // 時系列データも最新公表値に合わせて即時完全同期
+          setHistoryPoints((prev) => {
+            const synced = syncHistoryWithHoldings(prev, updatedHoldings);
+            saveHistoryPoints(synced);
+            return synced;
+          });
         }
         recordFundSyncTime();
         setLastFundSyncTime(new Date().toISOString());
@@ -335,7 +348,7 @@ export default function DashboardPage() {
             <SummaryCards summary={summary} />
           </div>
 
-          {/* Section 2: Daily Contribution & US Stock Driver Analysis (NEW) */}
+          {/* Section 2: Daily Contribution & US Stock Driver Analysis */}
           <div className={mobileTab === 'contribution' || mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
             <DailyContributionAnalysis holdings={holdings} />
           </div>

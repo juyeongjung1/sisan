@@ -14,6 +14,7 @@ const HOLDING_START_MONTHS: Record<string, number> = {
 
 /**
  * 各商品およびポートフォリオ全体のリアルな時系列推移データを生成
+ * 公募Webから取得した公式前日比（dailyChangePct）と完全一致するように調整
  */
 export function generateInitialHoldingHistories(holdings: AssetHolding[]): HoldingHistoryPoint[] {
   const points: HoldingHistoryPoint[] = [];
@@ -26,6 +27,7 @@ export function generateInitialHoldingHistories(holdings: AssetHolding[]): Holdi
     const isAccumulating = h.notes?.includes('積立');
     const totalGainRatio = h.purchaseAmountJpy > 0 ? h.currentValJpy / h.purchaseAmountJpy : 1;
     const startMonthsAgo = HOLDING_START_MONTHS[h.id] || 36;
+    const dailyChangePct = h.dailyChangePct || 0;
 
     // 過去96ヶ月分 (月次)
     for (let m = 96; m >= 0; m--) {
@@ -33,7 +35,7 @@ export function generateInitialHoldingHistories(holdings: AssetHolding[]): Holdi
       d.setMonth(d.getMonth() - m);
       const dateStr = d.toISOString().split('T')[0];
 
-      // この商品の投資開始前であればデータを作らない（または元本0/評価0）
+      // この商品の投資開始前であればデータを作らない
       if (m > startMonthsAgo) {
         continue;
       }
@@ -44,7 +46,6 @@ export function generateInitialHoldingHistories(holdings: AssetHolding[]): Holdi
       // 元本の推移
       let histPrincipal = h.purchaseAmountJpy;
       if (isAccumulating && startMonthsAgo > 0) {
-        // 積立の場合は月数に応じて均等に元本が積み上がる
         const minRatio = 1 / startMonthsAgo;
         histPrincipal = Math.round(h.purchaseAmountJpy * (minRatio + (1 - minRatio) * progress));
       }
@@ -52,7 +53,6 @@ export function generateInitialHoldingHistories(holdings: AssetHolding[]): Holdi
       // 評価額の推移（レバナスは2022年の下落と2023-2024年の爆発的成長をリアルに再現）
       let effectiveGainRatio = 1;
       if (h.id === 'hold_john_2') {
-        // レバナス特有の曲線 (2021高値 -> 2022-2023大底 -60% -> 2024-2026急上昇 +170%)
         if (progress < 0.3) {
           effectiveGainRatio = 1 + 0.3 * (progress / 0.3);
         } else if (progress < 0.5) {
@@ -62,7 +62,6 @@ export function generateInitialHoldingHistories(holdings: AssetHolding[]): Holdi
           effectiveGainRatio = 0.6 + (totalGainRatio - 0.6) * Math.pow(recoveryProg, 1.6);
         }
       } else {
-        // 一般的な資産の推移
         const wave = Math.sin(progress * Math.PI * 3) * 0.04;
         effectiveGainRatio = 1 + (totalGainRatio - 1) * Math.pow(progress, 1.1) + wave * progress;
       }
@@ -90,9 +89,16 @@ export function generateInitialHoldingHistories(holdings: AssetHolding[]): Holdi
       const dateStr = d.toISOString().split('T')[0];
       const dayProgress = (30 - day) / 30; // 0 -> 1
 
-      // 直近の日次ランダムウォーク（最新日は確実に現在評価額へ収束）
-      const dailyFluctuation = (Math.sin(day * 0.8) * 0.008) - ((1 - dayProgress) * 0.005);
-      const histVal = Math.round(h.currentValJpy * (1 + dailyFluctuation));
+      let histVal = 0;
+      if (day === 1) {
+        // ★前日（昨日）の値: 公表前日比（dailyChangePct）から正確に逆算して1円単位で完全一致させる
+        histVal = Math.round(h.currentValJpy / (1 + dailyChangePct / 100));
+      } else {
+        // 過去の日次ランダムウォーク
+        const dailyFluctuation = (Math.sin(day * 0.8) * 0.008) - ((1 - dayProgress) * 0.005);
+        histVal = Math.round(h.currentValJpy * (1 + dailyFluctuation));
+      }
+
       const fxRate = 153.5 - (day * 0.04) + Math.sin(day) * 0.2;
 
       points.push({
@@ -172,4 +178,45 @@ export function filterHistoryByTimeframe(
   return Array.from(uniqueMap.values()).sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
+}
+
+/**
+ * 保有銘柄の最新評価額・公式前日比に基づいて時系列データを再同期
+ */
+export function syncHistoryWithHoldings(
+  historyPoints: HoldingHistoryPoint[],
+  holdings: AssetHolding[]
+): HoldingHistoryPoint[] {
+  const baseDateStr = '2026-08-21';
+  const yesterday = new Date(2026, 7, 20);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+  const updated = [...historyPoints];
+
+  holdings.forEach((h) => {
+    const dailyChangePct = h.dailyChangePct || 0;
+    const yesterdayVal = Math.round(h.currentValJpy / (1 + dailyChangePct / 100));
+
+    // 最新日 (today) の更新
+    const todayIdx = updated.findIndex((p) => p.holdingId === h.id && p.date === baseDateStr);
+    if (todayIdx !== -1) {
+      updated[todayIdx] = {
+        ...updated[todayIdx],
+        currentValJpy: h.currentValJpy,
+        purchaseAmountJpy: h.purchaseAmountJpy,
+      };
+    }
+
+    // 前日 (yesterday) の更新
+    const yesterdayIdx = updated.findIndex((p) => p.holdingId === h.id && p.date === yesterdayStr);
+    if (yesterdayIdx !== -1) {
+      updated[yesterdayIdx] = {
+        ...updated[yesterdayIdx],
+        currentValJpy: yesterdayVal,
+        purchaseAmountJpy: h.purchaseAmountJpy,
+      };
+    }
+  });
+
+  return updated;
 }
