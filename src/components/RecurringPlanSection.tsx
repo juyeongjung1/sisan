@@ -338,7 +338,7 @@ export const RecurringPlanSection: React.FC<RecurringPlanSectionProps> = ({
 
           <div className="flex items-center gap-2 text-xs">
             <span className="text-slate-300">想定年利:</span>
-            {[3, 5, 7].map((rate) => (
+            {[3, 5, 7, 10, 15].map((rate) => (
               <button
                 key={rate}
                 onClick={() => setExpectedReturnRate(rate)}

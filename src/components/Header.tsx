@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { ExchangeRates } from '@/types';
-import { RefreshCw, Plus, Database, DollarSign, TrendingUp } from 'lucide-react';
+import { RefreshCw, Plus, Database, DollarSign, TrendingUp, LineChart } from 'lucide-react';
 
 interface HeaderProps {
   exchangeRates: ExchangeRates;
@@ -12,6 +12,7 @@ interface HeaderProps {
   onOpenAccountModal: () => void;
   onOpenBackupModal: () => void;
   onOpenCustomRateModal: () => void;
+  onOpenHistoryModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -22,6 +23,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAccountModal,
   onOpenBackupModal,
   onOpenCustomRateModal,
+  onOpenHistoryModal,
 }) => {
   return (
     <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-md">
@@ -79,12 +81,22 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Action Buttons */}
             <div className="flex items-center gap-2 ml-auto md:ml-2">
+              {onOpenHistoryModal && (
+                <button
+                  onClick={onOpenHistoryModal}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 rounded-lg text-xs font-semibold border border-indigo-500/40 transition"
+                >
+                  <LineChart className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>推移分析</span>
+                </button>
+              )}
+
               <button
                 onClick={onOpenBackupModal}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium border border-slate-700 transition"
               >
                 <Database className="w-3.5 h-3.5 text-slate-400" />
-                <span>データ管理</span>
+                <span className="hidden sm:inline">データ管理</span>
               </button>
 
               <button

@@ -35,6 +35,7 @@ import { HoldingPerformanceHistory } from '@/components/HoldingPerformanceHistor
 import { RecurringPlanSection } from '@/components/RecurringPlanSection';
 import { HoldingsTable } from '@/components/HoldingsTable';
 
+import { HistoryModal } from '@/components/HistoryModal';
 import { HoldingModal } from '@/components/HoldingModal';
 import { RecurringModal } from '@/components/RecurringModal';
 import { AccountModal } from '@/components/AccountModal';
@@ -58,7 +59,8 @@ export default function DashboardPage() {
   // 自動積立通知トースト
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
 
-  // モーダル管理
+  // モーダル管理（初回自動表示のため初期値 true）
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(true);
   const [isHoldingModalOpen, setIsHoldingModalOpen] = useState<boolean>(false);
   const [editingHolding, setEditingHolding] = useState<AssetHolding | null>(null);
 
@@ -255,6 +257,7 @@ export default function DashboardPage() {
         onOpenAccountModal={() => setIsAccountModalOpen(true)}
         onOpenBackupModal={() => setIsBackupModalOpen(true)}
         onOpenCustomRateModal={() => setIsCustomRateModalOpen(true)}
+        onOpenHistoryModal={() => setIsHistoryModalOpen(true)}
       />
 
       {/* Accumulation Notification Toast */}
@@ -407,7 +410,15 @@ export default function DashboardPage() {
         </button>
       </nav>
 
-      {/* Modals */}
+      {/* Auto / Manual History Pop-up Modal */}
+      <HistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        holdings={holdings}
+        historyPoints={historyPoints}
+      />
+
+      {/* Other Modals */}
       <HoldingModal
         isOpen={isHoldingModalOpen}
         onClose={() => {

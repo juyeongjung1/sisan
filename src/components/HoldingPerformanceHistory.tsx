@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AssetHolding, HoldingHistoryPoint, TimeframeOption } from '@/types';
 import { filterHistoryByTimeframe } from '@/lib/historyGenerator';
 import { formatCurrencyJpy, formatPercent } from '@/lib/calculations';
@@ -14,6 +14,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Sparkles,
+  Percent,
+  X,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -29,33 +31,73 @@ import {
 interface HoldingPerformanceHistoryProps {
   holdings: AssetHolding[];
   historyPoints: HoldingHistoryPoint[];
+  isModal?: boolean;
+  onCloseModal?: () => void;
+}
+
+export interface EnrichedHistoryRow extends HoldingHistoryPoint {
+  dailyDiffVal: number;      // 前日比・前期比（円）
+  dailyDiffPercent: number;  // 前日比・前期比（%）
+  totalGainVal: number;      // トータル損益（円）
+  totalGainPercent: number;  // トータル損益率（%）
 }
 
 export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps> = ({
   holdings,
   historyPoints,
+  isModal = false,
+  onCloseModal,
 }) => {
   const [selectedHoldingId, setSelectedHoldingId] = useState<string>('all');
-  const [timeframe, setTimeframe] = useState<TimeframeOption>('month');
+  const [timeframe, setTimeframe] = useState<TimeframeOption>('day');
   const [showFxRateLine, setShowFxRateLine] = useState<boolean>(true);
 
   // フィルタリングされたデータ
-  const chartData = filterHistoryByTimeframe(historyPoints, selectedHoldingId, timeframe);
+  const rawChartData = filterHistoryByTimeframe(historyPoints, selectedHoldingId, timeframe);
+
+  // 前日比・日次変動率を各行に計算
+  const enrichedChartData: EnrichedHistoryRow[] = useMemo(() => {
+    return rawChartData.map((row, idx) => {
+      const prev = idx > 0 ? rawChartData[idx - 1] : null;
+      const dailyDiffVal = prev ? row.currentValJpy - prev.currentValJpy : 0;
+      const dailyDiffPercent =
+        prev && prev.currentValJpy > 0 ? (dailyDiffVal / prev.currentValJpy) * 100 : 0;
+
+      const totalGainVal = row.currentValJpy - row.purchaseAmountJpy;
+      const totalGainPercent =
+        row.purchaseAmountJpy > 0 ? (totalGainVal / row.purchaseAmountJpy) * 100 : 0;
+
+      return {
+        ...row,
+        dailyDiffVal,
+        dailyDiffPercent,
+        totalGainVal,
+        totalGainPercent,
+      };
+    });
+  }, [rawChartData]);
 
   const selectedHolding = holdings.find((h) => h.id === selectedHoldingId);
   const title = selectedHolding ? selectedHolding.name : '保有資産全体 (トータルポートフォリオ)';
 
   // 期間内の開始値と最新値
-  const startPoint = chartData[0];
-  const endPoint = chartData[chartData.length - 1];
+  const startPoint = enrichedChartData[0];
+  const endPoint = enrichedChartData[enrichedChartData.length - 1];
 
-  const diffVal = endPoint && startPoint ? endPoint.currentValJpy - startPoint.currentValJpy : 0;
-  const diffPercent =
-    startPoint && startPoint.currentValJpy > 0 ? (diffVal / startPoint.currentValJpy) * 100 : 0;
+  const periodDiffVal =
+    endPoint && startPoint ? endPoint.currentValJpy - startPoint.currentValJpy : 0;
+  const periodDiffPercent =
+    startPoint && startPoint.currentValJpy > 0
+      ? (periodDiffVal / startPoint.currentValJpy) * 100
+      : 0;
+
+  // 最新日の前日比
+  const latestDailyDiffVal = endPoint?.dailyDiffVal || 0;
+  const latestDailyDiffPercent = endPoint?.dailyDiffPercent || 0;
 
   // 期間中の最高値・最安値
-  const maxVal = chartData.length > 0 ? Math.max(...chartData.map((d) => d.currentValJpy)) : 0;
-  const minVal = chartData.length > 0 ? Math.min(...chartData.map((d) => d.currentValJpy)) : 0;
+  const maxVal = enrichedChartData.length > 0 ? Math.max(...enrichedChartData.map((d) => d.currentValJpy)) : 0;
+  const minVal = enrichedChartData.length > 0 ? Math.min(...enrichedChartData.map((d) => d.currentValJpy)) : 0;
 
   const timeframeLabels: { key: TimeframeOption; label: string; desc: string }[] = [
     { key: 'day', label: '日 (7日)', desc: '直近1週間の日次推移' },
@@ -65,43 +107,58 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
     { key: 'all', label: '全期間', desc: '投資開始からの全推移' },
   ];
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      const gain = data.currentValJpy - data.purchaseAmountJpy;
-      const gainPercent =
-        data.purchaseAmountJpy > 0 ? (gain / data.purchaseAmountJpy) * 100 : 0;
+      const data: EnrichedHistoryRow = payload[0].payload;
 
       return (
-        <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl border border-slate-700 text-xs space-y-1.5 min-w-[200px]">
-          <div className="flex items-center justify-between border-b border-slate-700/80 pb-1">
+        <div className="bg-slate-900 text-white p-3.5 rounded-xl shadow-2xl border border-slate-700 text-xs space-y-1.5 min-w-[220px]">
+          <div className="flex items-center justify-between border-b border-slate-700/80 pb-1.5">
             <span className="font-bold text-slate-200">{data.date}</span>
             {data.fxRateUsd && (
-              <span className="text-amber-400 font-semibold">
+              <span className="text-amber-400 font-semibold text-[11px]">
                 $1 = ¥{data.fxRateUsd.toFixed(1)}
               </span>
             )}
           </div>
-          <div className="flex justify-between">
+
+          <div className="flex justify-between items-center">
             <span className="text-slate-400">評価額:</span>
-            <span className="font-bold text-blue-400">
+            <span className="font-bold text-blue-400 text-sm">
               {formatCurrencyJpy(data.currentValJpy)}
             </span>
           </div>
+
+          {/* 前日比・日次変動率 */}
+          <div className="flex justify-between items-center bg-slate-800/80 px-2 py-1 rounded-lg">
+            <span className="text-slate-300 font-medium">前日比(変動率):</span>
+            <span
+              className={`font-bold ${
+                data.dailyDiffVal >= 0 ? 'text-emerald-400' : 'text-rose-400'
+              }`}
+            >
+              {formatCurrencyJpy(data.dailyDiffVal, true)} ({formatPercent(data.dailyDiffPercent, true)})
+            </span>
+          </div>
+
           <div className="flex justify-between">
             <span className="text-slate-400">投資元本:</span>
             <span className="font-medium text-slate-300">
               {formatCurrencyJpy(data.purchaseAmountJpy)}
             </span>
           </div>
+
           <div className="flex justify-between pt-1 border-t border-slate-800">
-            <span className="text-slate-400">含み損益:</span>
+            <span className="text-slate-400">トータル損益:</span>
             <span
-              className={`font-bold ${gain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}
+              className={`font-bold ${
+                data.totalGainVal >= 0 ? 'text-emerald-400' : 'text-rose-400'
+              }`}
             >
-              {formatCurrencyJpy(gain, true)} ({formatPercent(gainPercent, true)})
+              {formatCurrencyJpy(data.totalGainVal, true)} ({formatPercent(data.totalGainPercent, true)})
             </span>
           </div>
+
           {data.notes && (
             <div className="text-[10px] text-amber-300 bg-amber-950/40 p-1 rounded border border-amber-800/40 mt-1">
               📌 {data.notes}
@@ -114,24 +171,35 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-6">
+    <div className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-6 ${isModal ? 'max-w-5xl w-full' : ''}`}>
       {/* Header with Title & Controls */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-blue-50 dark:bg-blue-950/50 rounded-xl text-blue-600 dark:text-blue-400">
-            <TrendingUp className="w-5 h-5" />
+        <div className="flex items-center justify-between w-full lg:w-auto">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-blue-50 dark:bg-blue-950/50 rounded-xl text-blue-600 dark:text-blue-400">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                商品別・期間別（日/週/月/年）資産推移分析
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                日次変動率（前日比%）とトータル損益推移の精密トラッカー
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              商品別・期間別（日/週/月/年）資産推移分析
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              各投資信託・資産ごとの過去の値動きと積立による成長履歴
-            </p>
-          </div>
+
+          {isModal && onCloseModal && (
+            <button
+              onClick={onCloseModal}
+              className="lg:hidden p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
-        {/* Holding Selector Dropdown */}
+        {/* Holding Selector Dropdown & Timeframe Tabs */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs w-full sm:w-auto">
             <Layers className="w-4 h-4 text-blue-500 shrink-0" />
@@ -166,12 +234,22 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
               </button>
             ))}
           </div>
+
+          {isModal && onCloseModal && (
+            <button
+              onClick={onCloseModal}
+              className="hidden lg:flex items-center gap-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-semibold transition"
+            >
+              <X className="w-4 h-4" />
+              <span>閉じる</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Selected Target Summary Cards */}
+      {/* 4 Performance Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-        {/* Current Val in Period */}
+        {/* Current Val */}
         <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
           <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
             現在評価額
@@ -184,48 +262,62 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
           </span>
         </div>
 
-        {/* Period Change */}
+        {/* Latest Daily Change (前日比) */}
         <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
           <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
-            期間中の評価額増減
+            最新の前日比 (1日の変動)
           </span>
           <div
             className={`text-xl font-extrabold mt-0.5 flex items-center gap-1 ${
-              diffVal >= 0
+              latestDailyDiffVal >= 0
                 ? 'text-emerald-600 dark:text-emerald-400'
                 : 'text-rose-600 dark:text-rose-400'
             }`}
           >
-            {diffVal >= 0 ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
-            <span>{formatCurrencyJpy(diffVal, true)}</span>
+            {latestDailyDiffVal >= 0 ? (
+              <ArrowUpRight className="w-5 h-5" />
+            ) : (
+              <ArrowDownRight className="w-5 h-5" />
+            )}
+            <span>{formatCurrencyJpy(latestDailyDiffVal, true)}</span>
           </div>
           <span
             className={`text-[10px] font-bold block mt-0.5 ${
-              diffVal >= 0 ? 'text-emerald-500' : 'text-rose-500'
+              latestDailyDiffVal >= 0 ? 'text-emerald-500' : 'text-rose-500'
             }`}
           >
-            {formatPercent(diffPercent, true)} (期間比)
+            {formatPercent(latestDailyDiffPercent, true)} (前日比)
           </span>
         </div>
 
-        {/* Max & Min in Period */}
+        {/* Period Total Gain/Change */}
         <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
           <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
-            期間内の最高 / 最低評価額
+            選択期間全体の増減
           </span>
-          <div className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-1">
-            高値: <span className="text-emerald-600 dark:text-emerald-400">{formatCurrencyJpy(maxVal)}</span>
+          <div
+            className={`text-xl font-extrabold mt-0.5 flex items-center gap-1 ${
+              periodDiffVal >= 0
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-rose-600 dark:text-rose-400'
+            }`}
+          >
+            <span>{formatCurrencyJpy(periodDiffVal, true)}</span>
           </div>
-          <div className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5">
-            安値: <span className="text-slate-500 dark:text-slate-400">{formatCurrencyJpy(minVal)}</span>
-          </div>
+          <span
+            className={`text-[10px] font-bold block mt-0.5 ${
+              periodDiffVal >= 0 ? 'text-emerald-500' : 'text-rose-500'
+            }`}
+          >
+            {formatPercent(periodDiffPercent, true)} (期間全体)
+          </span>
         </div>
 
         {/* FX Rate in Period */}
         <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
           <div className="flex items-center justify-between">
             <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-              為替レート推移 (USD/JPY)
+              為替レート (USD/JPY)
             </span>
             <label className="flex items-center gap-1 text-[10px] text-amber-500 font-semibold cursor-pointer">
               <input
@@ -250,7 +342,7 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
       {/* Main Trend Chart */}
       <div className="h-72 w-full pt-2">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData}>
+          <AreaChart data={enrichedChartData}>
             <defs>
               <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.7} />
@@ -267,7 +359,9 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
               fontSize={11}
               tickFormatter={(v) => {
                 const parts = v.split('-');
-                return timeframe === 'day' ? `${parts[1]}/${parts[2]}` : `${parts[0].slice(2)}/${parts[1]}`;
+                return timeframe === 'day'
+                  ? `${parts[1]}/${parts[2]}`
+                  : `${parts[0].slice(2)}/${parts[1]}`;
               }}
             />
             <YAxis
@@ -332,35 +426,42 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
         </ResponsiveContainer>
       </div>
 
-      {/* Breakdown Table for selected history */}
+      {/* Breakdown Table with Daily Changes */}
       <div className="space-y-2">
-        <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 uppercase tracking-wider">
-          <span>{title} の時系列履歴ログ</span>
-          <span className="text-[10px] font-normal text-slate-400">
-            ({chartData.length} 件のデータ)
+        <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between uppercase tracking-wider">
+          <span className="flex items-center gap-1.5">
+            <span>{title} の時系列推移ログ</span>
+            <span className="text-[10px] font-normal text-slate-400">
+              ({enrichedChartData.length} 件のデータ)
+            </span>
+          </span>
+          <span className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold lowercase">
+            ※ 前日比（日次変動率）とトータル損益を両方確認できます
           </span>
         </h3>
 
-        <div className="max-h-56 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl">
+        <div className="max-h-64 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl">
           <table className="w-full text-left text-xs">
             <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
               <tr>
-                <th className="py-2 px-3">日付</th>
-                <th className="py-2 px-3 text-right">評価額 (円)</th>
-                <th className="py-2 px-3 text-right">投資元本 (円)</th>
-                <th className="py-2 px-3 text-right">損益 (損益率)</th>
-                <th className="py-2 px-3 text-right">為替 (USD/JPY)</th>
-                <th className="py-2 px-3">備考・イベント</th>
+                <th className="py-2.5 px-3">日付</th>
+                <th className="py-2.5 px-3 text-right">評価額 (円)</th>
+                <th className="py-2.5 px-3 text-right bg-blue-50/50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 font-bold">
+                  前日比 (変動率 %)
+                </th>
+                <th className="py-2.5 px-3 text-right">投資元本 (円)</th>
+                <th className="py-2.5 px-3 text-right">トータル損益 (全体率 %)</th>
+                <th className="py-2.5 px-3 text-right">為替 (USD/JPY)</th>
+                <th className="py-2.5 px-3">備考・イベント</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 bg-white dark:bg-slate-900">
-              {chartData
+              {enrichedChartData
                 .slice()
                 .reverse()
                 .map((row) => {
-                  const gain = row.currentValJpy - row.purchaseAmountJpy;
-                  const gainPct =
-                    row.purchaseAmountJpy > 0 ? (gain / row.purchaseAmountJpy) * 100 : 0;
+                  const isDailyPositive = row.dailyDiffVal >= 0;
+                  const isTotalPositive = row.totalGainVal >= 0;
 
                   return (
                     <tr
@@ -373,12 +474,31 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
                       <td className="py-2 px-3 text-right font-bold text-slate-900 dark:text-white">
                         {formatCurrencyJpy(row.currentValJpy)}
                       </td>
+                      {/* 前日比・日次変動率 */}
+                      <td className="py-2 px-3 text-right bg-blue-50/20 dark:bg-blue-950/10 font-bold">
+                        <span
+                          className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] ${
+                            isDailyPositive
+                              ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-100/70 dark:bg-emerald-950/60'
+                              : 'text-rose-700 dark:text-rose-300 bg-rose-100/70 dark:bg-rose-950/60'
+                          }`}
+                        >
+                          {isDailyPositive ? '+' : ''}
+                          {formatCurrencyJpy(row.dailyDiffVal)} (
+                          {formatPercent(row.dailyDiffPercent, true)})
+                        </span>
+                      </td>
                       <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-400">
                         {formatCurrencyJpy(row.purchaseAmountJpy)}
                       </td>
                       <td className="py-2 px-3 text-right font-semibold">
-                        <span className={gain >= 0 ? 'text-emerald-500' : 'text-rose-500'}>
-                          {formatCurrencyJpy(gain, true)} ({formatPercent(gainPct, true)})
+                        <span
+                          className={
+                            isTotalPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                          }
+                        >
+                          {formatCurrencyJpy(row.totalGainVal, true)} (
+                          {formatPercent(row.totalGainPercent, true)})
                         </span>
                       </td>
                       <td className="py-2 px-3 text-right text-amber-600 dark:text-amber-400 font-medium">
