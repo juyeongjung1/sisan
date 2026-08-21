@@ -131,3 +131,13 @@ export interface AccountAllocation {
   percentage: number;
   color: string;
 }
+
+export interface ProductAllocation {
+  id: string;
+  name: string;
+  amountJpy: number;
+  percentage: number;
+  color: string;
+  fundCode?: string;
+  mergedAccounts?: string[];
+}

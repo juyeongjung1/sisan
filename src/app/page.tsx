@@ -359,8 +359,14 @@ export default function DashboardPage() {
   };
 
   // ポートフォリオ計算
-  const { summary, analyzedHoldings, currencyExposures, categoryAllocations, accountAllocations } =
-    calculatePortfolio(holdings, accounts, recurringPlans, exchangeRates, simulatedUsdRate);
+  const {
+    summary,
+    analyzedHoldings,
+    currencyExposures,
+    categoryAllocations,
+    accountAllocations,
+    productAllocations,
+  } = calculatePortfolio(holdings, accounts, recurringPlans, exchangeRates, simulatedUsdRate);
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20 md:pb-12">
@@ -442,12 +448,13 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Section 5: Portfolio Allocations (Currency, Category, Account) */}
+          {/* Section 5: Portfolio Allocations (Product, Category, Currency, Account) */}
           <div className={mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
             <AllocationsChart
               currencyExposures={currencyExposures}
               categoryAllocations={categoryAllocations}
               accountAllocations={accountAllocations}
+              productAllocations={productAllocations}
               lang={lang}
               isMasked={isMasked}
             />

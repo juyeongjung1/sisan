@@ -229,6 +229,33 @@ export function translateHoldingName(name: string, lang: Language): string {
 }
 
 /**
+ * 商品別アロケーション（合算銘柄名）の動的翻訳
+ */
+export function translateProductName(name: string, lang: Language): string {
+  if (lang === 'ja') {
+    if (name.includes('ZTech') || name.includes('Zテック') || name.includes('Z테크')) return 'iFreePlus 世界トレンド・テクノロジー株 (Zテック20)';
+    if (name.includes('東京海上') || name.includes('외국주식')) return '東京海上セレクション・外国株式インデックス (401k)';
+    if (name.includes('レバナス') || name.includes('NASDAQ-100') || name.includes('레바나스')) return '楽天レバレッジNASDAQ-100 (レバナス)';
+    if (name.includes('現金') || name.includes('待機資金') || name.includes('현금')) return '日本円 現金・預金 (待機資金)';
+    if (name.includes('FANG+')) return 'iFreeNext FANG+インデックス';
+    if (name.includes('IS米国債') || name.includes('미국채') || name.includes('2621')) return 'iShares 米国債20年ヘッジ (IS米国債)';
+    if (name.includes('S&P') || name.includes('Slim')) return 'eMAXIS Slim 米国株式 (S&P 500)';
+    return name;
+  }
+
+  // Korean
+  if (name.includes('Zテック') || name.includes('ZTech') || name.includes('Z테크')) return 'iFreePlus 글로벌 트렌드 Z테크20 (정주영+미키 통합)';
+  if (name.includes('東京海上') || name.includes('외국주식') || name.includes('도쿄해상')) return '도쿄해상 외국주식 인덱스 (401k 퇴직연금)';
+  if (name.includes('レバナス') || name.includes('NASDAQ-100') || name.includes('레바나스')) return '라쿠텐 레버리지 NASDAQ-100 (레바나스)';
+  if (name.includes('現金') || name.includes('待機資金') || name.includes('현금')) return '일본 엔화 현금·대기자금 (자녀계좌)';
+  if (name.includes('FANG+')) return 'iFreeNext FANG+ 인덱스 (적립식)';
+  if (name.includes('IS米国債') || name.includes('미국채') || name.includes('2621')) return 'iShares 미국채 20년 환헤지 (채권형)';
+  if (name.includes('S&P') || name.includes('Slim')) return 'eMAXIS Slim 미국주식 (S&P 500)';
+
+  return name;
+}
+
+/**
  * 口座名の動的翻訳
  */
 export function translateAccountName(name: string, lang: Language): string {
@@ -284,7 +311,7 @@ export function translateNotes(notes: string | undefined, lang: Language): strin
     return '매월 8일 정기 적립 (+15.23%)';
   }
   if (notes.includes('一括') || notes.includes('일괄')) return '일괄 매수 보유 (+17.98%)';
-  if (notes.includes('長期') || notes.includes('장기')) return '장기 보유 (+133.85%)';
+  if (notes.includes('長期') || notes.includes('장기')) return '장기保有 (+133.85%)';
   if (notes.includes('29日') || notes.includes('29일') || notes.includes('給与') || notes.includes('401k')) return '매월 29일 급여 자동 공제 적립 (+68.95%)';
   if (notes.includes('無リスク') || notes.includes('待機資金') || notes.includes('子供NISA')) return '무위험 대기자금 및 쿠션 방어자산';
 
