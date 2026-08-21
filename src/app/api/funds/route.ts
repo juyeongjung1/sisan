@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 export interface FundPriceResponse {
   code: string;
   name: string;
@@ -29,7 +31,6 @@ async function fetchSingleFundPrice(code: string, defaultName: string): Promise<
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         Accept: 'text/html,application/xhtml+xml',
       },
-      next: { revalidate: 10800 }, // 3時間キャッシュ (3 * 3600秒)
     });
 
     if (!res.ok) {
