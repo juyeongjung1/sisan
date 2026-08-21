@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { AssetHolding } from '@/types';
 import { formatCurrencyJpy, formatPercent } from '@/lib/calculations';
+import { Language, DICTIONARY, translateHoldingName } from '@/lib/i18n';
 import { MarketInsightSummary, USStockData } from '@/app/api/market-insights/route';
 import {
   TrendingDown,
@@ -20,9 +21,16 @@ import {
 
 interface DailyContributionAnalysisProps {
   holdings: AssetHolding[];
+  lang?: Language;
+  isMasked?: boolean;
 }
 
-export const DailyContributionAnalysis: React.FC<DailyContributionAnalysisProps> = ({ holdings }) => {
+export const DailyContributionAnalysis: React.FC<DailyContributionAnalysisProps> = ({
+  holdings,
+  lang = 'ja',
+  isMasked = false,
+}) => {
+  const t = DICTIONARY[lang];
   const [insights, setInsights] = useState<MarketInsightSummary | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -43,10 +51,18 @@ export const DailyContributionAnalysis: React.FC<DailyContributionAnalysisProps>
     loadInsights();
   }, []);
 
+  const formatVal = (val: number, showSign: boolean = false) => {
+    if (isMasked) {
+      if (showSign && val > 0) return '+¥***,***';
+      if (showSign && val < 0) return '-¥***,***';
+      return '¥***,***';
+    }
+    return formatCurrencyJpy(val, showSign);
+  };
+
   // 各銘柄の本日の変動額（寄与額）を算出
   const contributionItems = holdings.map((h) => {
     const changePct = h.dailyChangePct || 0;
-    // 変動額 = 現在評価額 - (現在評価額 / (1 + changePct/100))
     const diffJpy =
       changePct !== 0
         ? Math.round(h.currentValJpy - h.currentValJpy / (1 + changePct / 100))
@@ -58,28 +74,28 @@ export const DailyContributionAnalysis: React.FC<DailyContributionAnalysisProps>
       currentValJpy: h.currentValJpy,
       dailyChangePct: changePct,
       diffJpy,
-      fundCode: h.fundCode,
       category: h.category,
     };
   });
 
-  // プラス寄与（上昇・相殺）とマイナス要因（下落）に分類
+  const totalDailyDiffJpy = contributionItems.reduce((sum, item) => sum + item.diffJpy, 0);
+  const totalValJpy = holdings.reduce((sum, h) => sum + h.currentValJpy, 0);
+  const previousTotalValJpy = totalValJpy - totalDailyDiffJpy;
+  const portfolioDailyChangePct =
+    previousTotalValJpy > 0 ? (totalDailyDiffJpy / previousTotalValJpy) * 100 : 0;
+
   const negativeContributors = contributionItems
-    .filter((c) => c.diffJpy < 0)
-    .sort((a, b) => a.diffJpy - b.diffJpy); // 下落が大きい順
+    .filter((item) => item.diffJpy < 0)
+    .sort((a, b) => a.diffJpy - b.diffJpy);
 
   const positiveContributors = contributionItems
-    .filter((c) => c.diffJpy > 0)
-    .sort((a, b) => b.diffJpy - a.diffJpy); // 上昇が大きい順
+    .filter((item) => item.diffJpy > 0)
+    .sort((a, b) => b.diffJpy - a.diffJpy);
 
-  const neutralContributors = contributionItems.filter((c) => c.diffJpy === 0);
+  const neutralContributors = contributionItems.filter((item) => item.diffJpy === 0);
 
-  const totalDailyDiffJpy = contributionItems.reduce((sum, c) => sum + c.diffJpy, 0);
-  const totalVal = holdings.reduce((sum, h) => sum + h.currentValJpy, 0);
-  const totalDailyDiffPct = totalVal > 0 ? (totalDailyDiffJpy / (totalVal - totalDailyDiffJpy)) * 100 : 0;
-
-  const totalNegativeJpy = negativeContributors.reduce((sum, c) => sum + c.diffJpy, 0);
-  const totalPositiveJpy = positiveContributors.reduce((sum, c) => sum + c.diffJpy, 0);
+  const totalNegativeJpy = negativeContributors.reduce((sum, item) => sum + item.diffJpy, 0);
+  const totalPositiveJpy = positiveContributors.reduce((sum, item) => sum + item.diffJpy, 0);
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-6">
@@ -91,60 +107,72 @@ export const DailyContributionAnalysis: React.FC<DailyContributionAnalysisProps>
           </div>
           <div>
             <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              本日の銘柄別・寄与度分析 ＆ 米国株・経済要因解説
+              {t.contribTitle}
+              <span className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-xs px-2 py-0.5 rounded-full font-bold">
+                T+1 {lang === 'ko' ? '익일 반영 연동' : '翌日反映連動'}
+              </span>
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              どの商品が大きく影響し、どの資産が相殺（クッション）したのかを可視化
+              {t.contribSubtitle}
             </p>
           </div>
         </div>
 
-        {/* T+1 Notice Badge */}
-        <div className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 px-3 py-1.5 rounded-xl border border-amber-200 dark:border-amber-800/60 text-xs">
-          <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-          <span className="font-medium">
-            海外投信は<strong>「前夜の米国株終値 ➔ 翌日夕方の基準価額」</strong>に反映されます
-          </span>
+        <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 self-start sm:self-auto">
+          <Clock className="w-3.5 h-3.5 text-slate-400" />
+          <span>{lang === 'ko' ? '공시 기준: 매일 17~19시 갱신' : '公表基準: 毎日17〜19時更新'}</span>
         </div>
       </div>
 
-      {/* Summary Highlight Cards */}
+      {/* T+1 Delay Mechanism Notice Banner */}
+      <div className="p-3.5 bg-blue-50/80 dark:bg-blue-950/30 rounded-xl border border-blue-200/80 dark:border-blue-900/40 flex items-start gap-3 text-xs text-blue-900 dark:text-blue-200">
+        <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+        <div className="space-y-0.5">
+          <strong>💡 {lang === 'ko' ? '투자신託의 기준가 반영 원리 (시차 요인)' : '投資信託の基準価額の反映の仕組み（タイムラグ要因）'}</strong>
+          <p className="text-[11px] text-blue-800/90 dark:text-blue-300/80 leading-relaxed">
+            {t.t1Notice}
+          </p>
+        </div>
+      </div>
+
+      {/* Top 3 Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {/* Total Today Change */}
-        <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium block">
-            本日のポートフォリオ全体変動
+        {/* Total Change Today */}
+        <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1">
+            <span>{t.todayChange}</span>
           </span>
           <div
-            className={`text-2xl font-extrabold mt-1 flex items-center gap-1 ${
+            className={`text-2xl font-extrabold mt-1.5 flex items-baseline gap-2 ${
               totalDailyDiffJpy >= 0
                 ? 'text-emerald-600 dark:text-emerald-400'
                 : 'text-rose-600 dark:text-rose-400'
             }`}
           >
-            {totalDailyDiffJpy >= 0 ? <ArrowUpRight className="w-6 h-6" /> : <ArrowDownRight className="w-6 h-6" />}
-            <span>{formatCurrencyJpy(totalDailyDiffJpy, true)}</span>
+            <span>{formatVal(totalDailyDiffJpy, true)}</span>
+            <span className="text-xs font-bold">
+              ({portfolioDailyChangePct >= 0 ? '+' : ''}
+              {portfolioDailyChangePct.toFixed(2)}%)
+            </span>
           </div>
-          <span
-            className={`text-xs font-bold block mt-0.5 ${
-              totalDailyDiffJpy >= 0 ? 'text-emerald-500' : 'text-rose-500'
-            }`}
-          >
-            {formatPercent(totalDailyDiffPct, true)} (全体変動率)
+          <span className="text-[11px] text-slate-400 block mt-1">
+            {totalDailyDiffJpy < 0
+              ? (lang === 'ko' ? '일부 자산 하락을 방어 자산이 완화' : '下落銘柄を相殺資産がクッション')
+              : (lang === 'ko' ? '포트폴리오 전체 상승 기여' : '全体としてプラス寄与')}
           </span>
         </div>
 
-        {/* Negative Drag Factors */}
+        {/* Negative Pull-down Factors */}
         <div className="bg-rose-50/50 dark:bg-rose-950/20 p-4 rounded-xl border border-rose-200/60 dark:border-rose-900/40">
           <span className="text-xs text-rose-700 dark:text-rose-300 font-bold flex items-center gap-1">
             <TrendingDown className="w-4 h-4 text-rose-500" />
-            <span>押し下げ要因（下落寄与）</span>
+            <span>{t.dragFactors}</span>
           </span>
-          <div className="text-xl font-extrabold text-rose-600 dark:text-rose-400 mt-1">
-            {formatCurrencyJpy(totalNegativeJpy)}
+          <div className="text-2xl font-extrabold text-rose-600 dark:text-rose-400 mt-1.5">
+            {formatVal(totalNegativeJpy, true)}
           </div>
-          <span className="text-[11px] text-slate-600 dark:text-slate-400 block mt-0.5">
-            主因: {negativeContributors[0]?.name.split('(')[0] || 'なし'} 等
+          <span className="text-[11px] text-slate-600 dark:text-slate-400 block mt-1">
+            {lang === 'ko' ? '주요 요인:' : '主な要因:'} {translateHoldingName(negativeContributors[0]?.name || '', lang).split('(')[0] || '-'} {lang === 'ko' ? '등' : '等'}
           </span>
         </div>
 
@@ -152,13 +180,13 @@ export const DailyContributionAnalysis: React.FC<DailyContributionAnalysisProps>
         <div className="bg-emerald-50/50 dark:bg-emerald-950/20 p-4 rounded-xl border border-emerald-200/60 dark:border-emerald-900/40">
           <span className="text-xs text-emerald-700 dark:text-emerald-300 font-bold flex items-center gap-1">
             <ShieldCheck className="w-4 h-4 text-emerald-500" />
-            <span>相殺・クッション効果（下落緩和）</span>
+            <span>{t.cushionFactors}</span>
           </span>
-          <div className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">
-            {totalPositiveJpy > 0 ? `+${formatCurrencyJpy(totalPositiveJpy)}` : '待機資金 110万円'}
+          <div className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1.5">
+            {totalPositiveJpy > 0 ? `+${formatVal(totalPositiveJpy)}` : (lang === 'ko' ? '현금 대기자금 방어' : '現金待機資金で防御')}
           </div>
-          <span className="text-[11px] text-slate-600 dark:text-slate-400 block mt-0.5">
-            無リスク現金と広範インデックスが下落幅を抑制
+          <span className="text-[11px] text-slate-600 dark:text-slate-400 block mt-1">
+            {lang === 'ko' ? '무위험 현금 및 분산 효과로 하방 경직성 확보' : '無リスク現金および他ファンドの分散効果'}
           </span>
         </div>
       </div>
@@ -167,16 +195,16 @@ export const DailyContributionAnalysis: React.FC<DailyContributionAnalysisProps>
       <div className="space-y-3">
         <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
           <Layers className="w-4 h-4 text-indigo-500" />
-          <span>各商品の本日の影響額（寄与度ランキング）</span>
+          <span>{lang === 'ko' ? '각 상품별 오늘의 기여도 순위' : '各商品の本日寄与インパクト内訳'}</span>
         </h3>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {/* Negative Drag List */}
           <div className="bg-slate-50/70 dark:bg-slate-800/40 rounded-xl p-3.5 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
             <div className="text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center justify-between">
-              <span>📉 下落要因となった商品</span>
+              <span>{t.dragListTitle}</span>
               <span className="text-[11px] font-normal text-slate-500">
-                {negativeContributors.length} 件
+                {negativeContributors.length} {lang === 'ko' ? '건' : '銘柄'}
               </span>
             </div>
 
@@ -188,19 +216,19 @@ export const DailyContributionAnalysis: React.FC<DailyContributionAnalysisProps>
                 >
                   <div className="min-w-0 flex-1">
                     <span className="font-bold text-xs text-slate-800 dark:text-slate-200 block truncate">
-                      {c.name}
+                      {translateHoldingName(c.name, lang)}
                     </span>
                     <span className="text-[10px] text-slate-400">
-                      評価額: {formatCurrencyJpy(c.currentValJpy)}
+                      {lang === 'ko' ? '평가액:' : '評価額:'} {formatVal(c.currentValJpy)}
                     </span>
                   </div>
 
                   <div className="text-right shrink-0">
                     <div className="font-extrabold text-xs text-rose-600 dark:text-rose-400">
-                      {formatCurrencyJpy(c.diffJpy)}
+                      {formatVal(c.diffJpy, true)}
                     </div>
                     <span className="text-[10px] text-rose-500 font-semibold block">
-                      前日比 {c.dailyChangePct}%
+                      {lang === 'ko' ? '전일비' : '前日比'} {c.dailyChangePct}%
                     </span>
                   </div>
                 </div>
@@ -211,9 +239,9 @@ export const DailyContributionAnalysis: React.FC<DailyContributionAnalysisProps>
           {/* Cushion / Stable List */}
           <div className="bg-slate-50/70 dark:bg-slate-800/40 rounded-xl p-3.5 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
             <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center justify-between">
-              <span>🛡️ 上昇または下落を食い止めた商品（相殺要因）</span>
+              <span>{t.cushionListTitle}</span>
               <span className="text-[11px] font-normal text-slate-500">
-                {positiveContributors.length + neutralContributors.length} 件
+                {positiveContributors.length + neutralContributors.length} {lang === 'ko' ? '건' : '銘柄'}
               </span>
             </div>
 
@@ -225,10 +253,10 @@ export const DailyContributionAnalysis: React.FC<DailyContributionAnalysisProps>
                 >
                   <div className="min-w-0 flex-1">
                     <span className="font-bold text-xs text-slate-800 dark:text-slate-200 block truncate">
-                      {c.name}
+                      {translateHoldingName(c.name, lang)}
                     </span>
                     <span className="text-[10px] text-slate-400">
-                      評価額: {formatCurrencyJpy(c.currentValJpy)}
+                      {lang === 'ko' ? '평가액:' : '評価額:'} {formatVal(c.currentValJpy)}
                     </span>
                   </div>
 
@@ -237,17 +265,17 @@ export const DailyContributionAnalysis: React.FC<DailyContributionAnalysisProps>
                       className={`font-extrabold text-xs ${
                         c.diffJpy > 0
                           ? 'text-emerald-600 dark:text-emerald-400'
-                          : 'text-slate-600 dark:text-slate-300'
+                          : 'text-slate-500 dark:text-slate-400'
                       }`}
                     >
-                      {c.diffJpy > 0 ? `+${formatCurrencyJpy(c.diffJpy)}` : '±0円 (相殺防衛)'}
+                      {c.diffJpy > 0 ? `+${formatVal(c.diffJpy)}` : (lang === 'ko' ? '±0 (안전자산)' : '±0円 (安全資産)')}
                     </div>
                     <span
                       className={`text-[10px] font-semibold block ${
                         c.diffJpy > 0 ? 'text-emerald-500' : 'text-slate-400'
                       }`}
                     >
-                      {c.dailyChangePct > 0 ? `+${c.dailyChangePct}%` : '無変動・安定'}
+                      {c.diffJpy > 0 ? `${lang === 'ko' ? '전일비' : '前日比'} +${c.dailyChangePct}%` : (lang === 'ko' ? '변동 없음' : '無変動')}
                     </span>
                   </div>
                 </div>
@@ -257,104 +285,88 @@ export const DailyContributionAnalysis: React.FC<DailyContributionAnalysisProps>
         </div>
       </div>
 
-      {/* Section: Major US Tech Stocks Driver (前夜の米国市場を動かした主要株) */}
+      {/* US Market Drivers Section */}
       {insights && (
-        <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-slate-800">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
               <Globe className="w-4 h-4 text-blue-500" />
-              <span>インデックスを動かした前夜の米国主要株（Magnificent 7）</span>
-            </h3>
+              <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                {t.usStocksTitle}
+              </h3>
+            </div>
             <span className="text-[11px] text-slate-400">
-              ※ FANG+、Zテック20、NASDAQ100、S&P500の主要構成銘柄
+              {lang === 'ko' ? '전날 밤 미국 장 마감 시세 연동' : '前夜米国市場の引け値連動'}
             </span>
           </div>
 
-          {/* Stock Cards Grid */}
+          {/* US Stock Badges Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {insights.majorStocks.map((stock) => {
-              const isPos = stock.changePct >= 0;
-              return (
-                <div
-                  key={stock.symbol}
-                  className="bg-slate-50 dark:bg-slate-800/70 p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-xs text-slate-900 dark:text-white">
-                      {stock.symbol}
-                    </span>
-                    <span
-                      className={`text-[11px] font-bold px-1.5 py-0.2 rounded ${
-                        isPos
-                          ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950'
-                          : 'text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950'
-                      }`}
-                    >
-                      {isPos ? '+' : ''}
-                      {stock.changePct}%
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">
-                    {stock.name}
+            {insights.majorStocks.map((stock) => (
+              <div
+                key={stock.symbol}
+                className="bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-xs text-slate-900 dark:text-white">
+                    {stock.symbol}
                   </span>
-                  <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                    ${stock.price.toFixed(1)}
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-1 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
-                    {stock.relatedFunds.slice(0, 2).map((rf) => (
-                      <span
-                        key={rf}
-                        className="text-[9px] bg-blue-100/70 dark:bg-blue-950 text-blue-700 dark:text-blue-300 px-1 py-0.2 rounded font-medium"
-                      >
-                        {rf}
-                      </span>
-                    ))}
-                  </div>
+                  <span
+                    className={`text-[11px] font-bold px-1.5 py-0.2 rounded ${
+                      stock.changePct >= 0
+                        ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60'
+                        : 'text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/60'
+                    }`}
+                  >
+                    {stock.changePct >= 0 ? '+' : ''}
+                    {stock.changePct}%
+                  </span>
                 </div>
-              );
-            })}
+                <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
+                  <span className="truncate max-w-[90px]">{stock.name.split('(')[0]}</span>
+                  <span className="font-mono text-slate-700 dark:text-slate-300 font-semibold">
+                    ${stock.price}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
 
-          {/* Market Insight Drivers (要因解説リスト) */}
-          <div className="space-y-2.5 pt-2">
-            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>最新の市場・為替要因の解説</span>
-            </h4>
+          {/* Detailed Market Drivers List */}
+          <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-xl p-4 border border-indigo-800/50 space-y-3">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-300 uppercase tracking-wider">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span>{t.marketDriversTitle}</span>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               {insights.keyDrivers.map((driver, idx) => (
                 <div
                   key={idx}
-                  className="bg-slate-50/80 dark:bg-slate-800/50 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 text-xs space-y-1.5"
+                  className="bg-slate-800/70 p-3 rounded-lg border border-slate-700/60 flex items-start gap-2.5"
                 >
-                  <div className="flex items-center gap-1.5 font-bold">
-                    {driver.impact === 'negative' ? (
-                      <span className="p-1 rounded bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400">
-                        <ArrowDownRight className="w-3.5 h-3.5" />
-                      </span>
-                    ) : (
-                      <span className="p-1 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
-                        <ArrowUpRight className="w-3.5 h-3.5" />
-                      </span>
-                    )}
-                    <span className="text-slate-900 dark:text-white">{driver.title}</span>
-                  </div>
-
-                  <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
-                    {driver.description}
-                  </p>
-
-                  <div className="flex items-center gap-1 flex-wrap pt-1 text-[10px] text-slate-400">
-                    <span>影響銘柄:</span>
-                    {driver.affectedFunds.map((f) => (
-                      <span
-                        key={f}
-                        className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-1.5 py-0.2 rounded font-medium"
-                      >
-                        {f}
-                      </span>
-                    ))}
+                  <span
+                    className={`text-xs font-bold px-2 py-0.5 rounded shrink-0 mt-0.5 ${
+                      driver.impact === 'positive'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : driver.impact === 'negative'
+                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                        : 'bg-slate-500/20 text-slate-300 border border-slate-500/30'
+                    }`}
+                  >
+                    {driver.impact === 'positive'
+                      ? (lang === 'ko' ? '상승요인' : '上昇要因')
+                      : driver.impact === 'negative'
+                      ? (lang === 'ko' ? '하락요인' : '下落要因')
+                      : (lang === 'ko' ? '안정방어' : '安定防御')}
+                  </span>
+                  <div className="space-y-1 min-w-0">
+                    <span className="font-bold text-xs text-white block leading-snug">
+                      {driver.title}
+                    </span>
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      {driver.description}
+                    </p>
                   </div>
                 </div>
               ))}

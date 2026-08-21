@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { AssetHolding, HoldingHistoryPoint } from '@/types';
+import { Language } from '@/lib/i18n';
 import { HoldingPerformanceHistory } from './HoldingPerformanceHistory';
 
 interface HistoryModalProps {
@@ -9,6 +10,8 @@ interface HistoryModalProps {
   onClose: () => void;
   holdings: AssetHolding[];
   historyPoints: HoldingHistoryPoint[];
+  lang?: Language;
+  isMasked?: boolean;
 }
 
 export const HistoryModal: React.FC<HistoryModalProps> = ({
@@ -16,6 +19,8 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
   onClose,
   holdings,
   historyPoints,
+  lang = 'ja',
+  isMasked = false,
 }) => {
   if (!isOpen) return null;
 
@@ -33,6 +38,8 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
           historyPoints={historyPoints}
           isModal={true}
           onCloseModal={onClose}
+          lang={lang}
+          isMasked={isMasked}
         />
       </div>
     </div>

@@ -33,6 +33,7 @@ import {
   INITIAL_RECURRING_PLANS,
   DEFAULT_EXCHANGE_RATES,
 } from '@/lib/constants';
+import { Language, DICTIONARY } from '@/lib/i18n';
 
 import { Header } from '@/components/Header';
 import { SummaryCards } from '@/components/SummaryCards';
@@ -75,6 +76,10 @@ export default function DashboardPage() {
   const [lastFundSyncTime, setLastFundSyncTime] = useState<string | null>(null);
   const [isClient, setIsClient] = useState<boolean>(false);
 
+  // 多言語 & プライバシーマスク管理
+  const [lang, setLang] = useState<Language>('ja');
+  const [isMasked, setIsMasked] = useState<boolean>(false);
+
   // 自動積立通知トースト
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
 
@@ -93,6 +98,8 @@ export default function DashboardPage() {
   // スマホ用アクティブタブ
   const [mobileTab, setMobileTab] = useState<'dashboard' | 'contribution' | 'history' | 'simulator' | 'recurring' | 'holdings'>('dashboard');
 
+  const t = DICTIONARY[lang];
+
   // クライアント初期化 & データ読み込み & 自動積立判定 & 3時間自動投信データ同期
   useEffect(() => {
     setIsClient(true);
@@ -104,6 +111,11 @@ export default function DashboardPage() {
     const loadedRates = loadSavedRates();
     const lastSync = getLastFundSyncTime();
     setLastFundSyncTime(lastSync);
+
+    const savedLang = localStorage.getItem('sisan_lang') as Language | null;
+    if (savedLang === 'ko' || savedLang === 'ja') {
+      setLang(savedLang);
+    }
 
     // 日付経過による自動積立チェック
     const { hasUpdated, updatedHoldings, updatedPlans, generatedLogs } =
@@ -145,6 +157,18 @@ export default function DashboardPage() {
     handleRefreshFundPrices(currentHoldings);
   }, []);
 
+  // 言語切り替え
+  const handleToggleLanguage = () => {
+    const nextLang = lang === 'ja' ? 'ko' : 'ja';
+    setLang(nextLang);
+    localStorage.setItem('sisan_lang', nextLang);
+  };
+
+  // プライバシーマスク切り替え
+  const handleToggleMask = () => {
+    setIsMasked((prev) => !prev);
+  };
+
   // データ変更時のLocalStorage自動保存
   useEffect(() => {
     if (!isClient) return;
@@ -168,134 +192,170 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!isClient) return;
-    saveHistoryPoints(historyPoints);
-  }, [historyPoints, isClient]);
-
-  useEffect(() => {
-    if (!isClient) return;
     saveRates(exchangeRates);
   }, [exchangeRates, isClient]);
 
-  // 為替レート取得
+  // 為替レート手動/自動更新
   const handleRefreshRates = async () => {
+    if (exchangeRates.isCustom) return;
     setIsFetchingRates(true);
     try {
       const live = await fetchLiveExchangeRates();
       setExchangeRates(live);
       setSimulatedUsdRate(live.USD);
     } catch (e) {
-      console.error(e);
+      console.error('Failed to update FX rates', e);
     } finally {
       setIsFetchingRates(false);
     }
   };
 
-  // 公表Web投信基準価額の自動同期
-  const handleRefreshFundPrices = async (targetHoldings: AssetHolding[] = holdings) => {
+  // 投資信託の基準価額同期
+  const handleRefreshFundPrices = async (targetHoldings = holdings) => {
     setIsFetchingFunds(true);
     try {
-      const livePrices = await fetchLiveFundPrices();
-      if (livePrices.length > 0) {
-        const { updatedHoldings, hasChanges } = syncHoldingsWithFundPrices(targetHoldings, livePrices);
+      const liveFunds = await fetchLiveFundPrices();
+      if (Object.keys(liveFunds).length > 0) {
+        const { updatedHoldings, hasChanges } = syncHoldingsWithFundPrices(targetHoldings, liveFunds);
         if (hasChanges) {
           setHoldings(updatedHoldings);
           saveHoldings(updatedHoldings);
 
-          // 時系列データも最新公表値に合わせて即時完全同期
-          setHistoryPoints((prev) => {
-            const synced = syncHistoryWithHoldings(prev, updatedHoldings);
-            saveHistoryPoints(synced);
-            return synced;
-          });
+          const syncedHistory = syncHistoryWithHoldings(historyPoints, updatedHoldings);
+          setHistoryPoints(syncedHistory);
+          saveHistoryPoints(syncedHistory);
         }
         recordFundSyncTime();
-        setLastFundSyncTime(new Date().toISOString());
+        setLastFundSyncTime(getLastFundSyncTime());
       }
     } catch (e) {
-      console.error('Failed to sync fund prices:', e);
+      console.error('Failed to refresh fund prices', e);
     } finally {
       setIsFetchingFunds(false);
     }
   };
 
-  // 資産ハンドラ
-  const handleSaveHolding = (holding: AssetHolding) => {
-    setHoldings((prev) => {
-      const exists = prev.some((h) => h.id === holding.id);
-      if (exists) {
-        return prev.map((h) => (h.id === holding.id ? holding : h));
-      }
-      return [...prev, holding];
-    });
+  // 保有資産の追加・編集
+  const handleSaveHolding = (saved: AssetHolding) => {
+    let updated: AssetHolding[];
+    const exists = holdings.some((h) => h.id === saved.id);
+    if (exists) {
+      updated = holdings.map((h) => (h.id === saved.id ? saved : h));
+    } else {
+      updated = [...holdings, saved];
+    }
+    setHoldings(updated);
+    setIsHoldingModalOpen(false);
+    setEditingHolding(null);
+
+    const syncedHistory = syncHistoryWithHoldings(historyPoints, updated);
+    setHistoryPoints(syncedHistory);
+    saveHistoryPoints(syncedHistory);
   };
 
+  // 保有資産の削除
   const handleDeleteHolding = (id: string) => {
-    if (confirm('この資産を削除してもよろしいですか？')) {
-      setHoldings((prev) => prev.filter((h) => h.id !== id));
-      setRecurringPlans((prev) => prev.filter((r) => r.holdingId !== id));
+    if (confirm(lang === 'ko' ? '정말 이 종목을 삭제하시겠습니까?' : 'この保有資産を削除してもよろしいですか？')) {
+      const updated = holdings.filter((h) => h.id !== id);
+      setHoldings(updated);
+      const syncedHistory = syncHistoryWithHoldings(historyPoints, updated);
+      setHistoryPoints(syncedHistory);
+      saveHistoryPoints(syncedHistory);
     }
   };
 
-  // 積立ハンドラ
-  const handleSaveRecurringPlan = (plan: RecurringPlan) => {
-    setRecurringPlans((prev) => {
-      const exists = prev.some((p) => p.id === plan.id);
-      if (exists) {
-        return prev.map((p) => (p.id === plan.id ? plan : p));
-      }
-      return [...prev, plan];
-    });
+  // 積立プランの追加・編集
+  const handleSaveRecurringPlan = (saved: RecurringPlan) => {
+    let updated: RecurringPlan[];
+    const exists = recurringPlans.some((p) => p.id === saved.id);
+    if (exists) {
+      updated = recurringPlans.map((p) => (p.id === saved.id ? saved : p));
+    } else {
+      updated = [...recurringPlans, saved];
+    }
+    setRecurringPlans(updated);
+    setIsRecurringModalOpen(false);
+    setEditingPlan(null);
   };
 
+  // 積立プランの有効/無効トグル
   const handleToggleRecurringActive = (id: string) => {
-    setRecurringPlans((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, isActive: !p.isActive } : p))
+    setRecurringPlans(
+      recurringPlans.map((p) => (p.id === id ? { ...p, isActive: !p.isActive } : p))
     );
   };
 
+  // 積立プランの削除
   const handleDeleteRecurringPlan = (id: string) => {
-    if (confirm('この積立設定を削除しますか？')) {
-      setRecurringPlans((prev) => prev.filter((p) => p.id !== id));
+    if (confirm(lang === 'ko' ? '이 적립 설정을 삭제하시겠습니까?' : 'この積立設定を削除してもよろしいですか？')) {
+      setRecurringPlans(recurringPlans.filter((p) => p.id !== id));
     }
   };
 
-  // 手動積立実行
+  // 積立プランの手動即時実行
   const handleExecuteManual = (planId: string) => {
-    const { updatedHoldings, updatedPlans, log } = executeManualAccumulation(
-      planId,
-      holdings,
-      recurringPlans,
-      new Date()
-    );
-    setHoldings(updatedHoldings);
-    setRecurringPlans(updatedPlans);
-    if (log) {
-      setAccumulationLogs((prev) => [log, ...prev]);
-      setNotificationMsg(`⚡「${log.holdingName}」に ¥${log.amountJpy.toLocaleString()} の積立を加算反映しました！`);
+    const plan = recurringPlans.find((p) => p.id === planId);
+    if (!plan) return;
+
+    if (
+      confirm(
+        lang === 'ko'
+          ? `지금 즉시 ${plan.monthlyAmountJpy.toLocaleString()}엔의 적립을 자산에 가산 반영하시겠습니까?`
+          : `今すぐ「${plan.monthlyAmountJpy.toLocaleString()}円」の積立を資産へ加算反映しますか？`
+      )
+    ) {
+      const { updatedHoldings, updatedPlans, log } = executeManualAccumulation(planId, holdings, recurringPlans);
+      setHoldings(updatedHoldings);
+      saveHoldings(updatedHoldings);
+      setRecurringPlans(updatedPlans);
+      saveRecurringPlans(updatedPlans);
+
+      if (log) {
+        const newLogs = [log, ...accumulationLogs];
+        setAccumulationLogs(newLogs);
+        saveAccumulationLogs(newLogs);
+      }
+
+      const syncedHistory = syncHistoryWithHoldings(historyPoints, updatedHoldings);
+      setHistoryPoints(syncedHistory);
+      saveHistoryPoints(syncedHistory);
+
+      setNotificationMsg(
+        lang === 'ko'
+          ? `⚡ ${plan.monthlyAmountJpy.toLocaleString()}엔의 적립을 포트폴리오에 반영했습니다.`
+          : `⚡ ${plan.monthlyAmountJpy.toLocaleString()}円の積立を即時反映しました！`
+      );
     }
   };
 
-  // バックアップ復元 / リセット
+  // バックアップ復元
   const handleImportData = (data: ExportData) => {
-    setAccounts(data.accounts);
-    setHoldings(data.holdings);
-    setRecurringPlans(data.recurringPlans || []);
-    setAccumulationLogs(data.accumulationLogs || []);
-    setHistoryPoints(data.historyPoints || []);
+    if (data.accounts) setAccounts(data.accounts);
+    if (data.holdings) setHoldings(data.holdings);
+    if (data.recurringPlans) setRecurringPlans(data.recurringPlans);
+    if (data.accumulationLogs) setAccumulationLogs(data.accumulationLogs);
+    if (data.historyPoints) setHistoryPoints(data.historyPoints);
     if (data.exchangeRates) {
       setExchangeRates(data.exchangeRates);
       setSimulatedUsdRate(data.exchangeRates.USD);
     }
+    setIsBackupModalOpen(false);
+    alert(lang === 'ko' ? '데이터가 성공적으로 복원되었습니다.' : 'データのインポートが完了しました。');
   };
 
+  // 初期サンプルデータへのリセット
   const handleResetToSample = () => {
-    setAccounts(INITIAL_ACCOUNTS);
-    setHoldings(INITIAL_HOLDINGS);
-    setRecurringPlans(INITIAL_RECURRING_PLANS);
-    setAccumulationLogs([]);
-    setHistoryPoints([]);
-    setExchangeRates(DEFAULT_EXCHANGE_RATES);
-    setSimulatedUsdRate(DEFAULT_EXCHANGE_RATES.USD);
+    if (confirm(lang === 'ko' ? '모든 데이터를 기본 샘플 상태로 리셋하시겠습니까?' : 'すべてのデータを初期サンプル状態にリセットしますか？')) {
+      setAccounts(INITIAL_ACCOUNTS);
+      setHoldings(INITIAL_HOLDINGS);
+      setRecurringPlans(INITIAL_RECURRING_PLANS);
+      setAccumulationLogs([]);
+      const defaultHistory = syncHistoryWithHoldings([], INITIAL_HOLDINGS);
+      setHistoryPoints(defaultHistory);
+      setExchangeRates(DEFAULT_EXCHANGE_RATES);
+      setSimulatedUsdRate(DEFAULT_EXCHANGE_RATES.USD);
+      setIsBackupModalOpen(false);
+    }
   };
 
   // ポートフォリオ計算
@@ -310,6 +370,10 @@ export default function DashboardPage() {
         isFetchingRates={isFetchingRates}
         isFetchingFunds={isFetchingFunds}
         lastFundSyncTime={lastFundSyncTime}
+        lang={lang}
+        onToggleLanguage={handleToggleLanguage}
+        isMasked={isMasked}
+        onToggleMask={handleToggleMask}
         onRefreshRates={handleRefreshRates}
         onRefreshFunds={() => handleRefreshFundPrices(holdings)}
         onOpenAddModal={() => {
@@ -345,12 +409,12 @@ export default function DashboardPage() {
         <div className="space-y-6">
           {/* Section 1: Top Summary & FX Breakdown */}
           <div className={mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
-            <SummaryCards summary={summary} />
+            <SummaryCards summary={summary} lang={lang} isMasked={isMasked} />
           </div>
 
           {/* Section 2: Daily Contribution & US Stock Driver Analysis */}
           <div className={mobileTab === 'contribution' || mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
-            <DailyContributionAnalysis holdings={holdings} />
+            <DailyContributionAnalysis holdings={holdings} lang={lang} isMasked={isMasked} />
           </div>
 
           {/* Section 3: Product Performance Trend (Day/Week/Month/Year) */}
@@ -358,6 +422,8 @@ export default function DashboardPage() {
             <HoldingPerformanceHistory
               holdings={holdings}
               historyPoints={historyPoints}
+              lang={lang}
+              isMasked={isMasked}
             />
           </div>
 
@@ -371,6 +437,8 @@ export default function DashboardPage() {
               totalCurrentValJpy={summary.totalCurrentValJpy}
               simulatedTotalValJpy={summary.simulatedTotalValJpy}
               simulatedDiffJpy={summary.simulatedDiffJpy}
+              lang={lang}
+              isMasked={isMasked}
             />
           </div>
 
@@ -380,6 +448,8 @@ export default function DashboardPage() {
               currencyExposures={currencyExposures}
               categoryAllocations={categoryAllocations}
               accountAllocations={accountAllocations}
+              lang={lang}
+              isMasked={isMasked}
             />
           </div>
 
@@ -402,6 +472,8 @@ export default function DashboardPage() {
               onDeletePlan={handleDeleteRecurringPlan}
               onExecuteManual={handleExecuteManual}
               currentTotalValJpy={summary.totalCurrentValJpy}
+              lang={lang}
+              isMasked={isMasked}
             />
           </div>
 
@@ -419,6 +491,8 @@ export default function DashboardPage() {
                 setIsHoldingModalOpen(true);
               }}
               onDeleteHolding={handleDeleteHolding}
+              lang={lang}
+              isMasked={isMasked}
             />
           </div>
         </div>
@@ -433,7 +507,7 @@ export default function DashboardPage() {
           }`}
         >
           <LayoutDashboard className="w-4 h-4 mb-0.5" />
-          <span>概要</span>
+          <span>{t.navSummary}</span>
         </button>
 
         <button
@@ -443,7 +517,7 @@ export default function DashboardPage() {
           }`}
         >
           <Zap className="w-4 h-4 mb-0.5" />
-          <span>要因分析</span>
+          <span>{t.navContribution}</span>
         </button>
 
         <button
@@ -453,7 +527,7 @@ export default function DashboardPage() {
           }`}
         >
           <LineChart className="w-4 h-4 mb-0.5" />
-          <span>推移分析</span>
+          <span>{t.navHistory}</span>
         </button>
 
         <button
@@ -463,7 +537,7 @@ export default function DashboardPage() {
           }`}
         >
           <Sliders className="w-4 h-4 mb-0.5" />
-          <span>為替試算</span>
+          <span>{t.navSimulator}</span>
         </button>
 
         <button
@@ -473,7 +547,7 @@ export default function DashboardPage() {
           }`}
         >
           <Calendar className="w-4 h-4 mb-0.5" />
-          <span>積立設定</span>
+          <span>{t.navRecurring}</span>
         </button>
 
         <button
@@ -483,7 +557,7 @@ export default function DashboardPage() {
           }`}
         >
           <ListChecks className="w-4 h-4 mb-0.5" />
-          <span>銘柄一覧</span>
+          <span>{t.navHoldings}</span>
         </button>
       </nav>
 
@@ -493,6 +567,8 @@ export default function DashboardPage() {
         onClose={() => setIsHistoryModalOpen(false)}
         holdings={holdings}
         historyPoints={historyPoints}
+        lang={lang}
+        isMasked={isMasked}
       />
 
       {/* Other Modals */}

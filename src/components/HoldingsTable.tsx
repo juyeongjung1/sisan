@@ -5,6 +5,13 @@ import { Account, AssetHolding, AssetCategory } from '@/types';
 import { HoldingAnalysis, formatCurrencyJpy, formatPercent } from '@/lib/calculations';
 import { CATEGORY_CONFIG, CURRENCY_CONFIG } from '@/lib/constants';
 import {
+  Language,
+  DICTIONARY,
+  translateHoldingName,
+  translateAccountName,
+  translateNotes,
+} from '@/lib/i18n';
+import {
   ListFilter,
   Plus,
   Edit2,
@@ -21,6 +28,8 @@ interface HoldingsTableProps {
   onOpenAddModal: () => void;
   onEditHolding: (holding: AssetHolding) => void;
   onDeleteHolding: (id: string) => void;
+  lang?: Language;
+  isMasked?: boolean;
 }
 
 export const HoldingsTable: React.FC<HoldingsTableProps> = ({
@@ -29,9 +38,21 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
   onOpenAddModal,
   onEditHolding,
   onDeleteHolding,
+  lang = 'ja',
+  isMasked = false,
 }) => {
+  const t = DICTIONARY[lang];
   const [selectedAccount, setSelectedAccount] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+  const formatVal = (val: number, showSign: boolean = false) => {
+    if (isMasked) {
+      if (showSign && val > 0) return '+¥***,***';
+      if (showSign && val < 0) return '-¥***,***';
+      return '¥***,***';
+    }
+    return formatCurrencyJpy(val, showSign);
+  };
 
   const filteredHoldings = analyzedHoldings.filter((item) => {
     if (selectedAccount !== 'all' && item.holding.accountId !== selectedAccount) {
@@ -49,13 +70,13 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
         <div>
           <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            保有資産・銘柄一覧
+            {t.tableTitle}
             <span className="text-xs bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full font-medium">
-              {filteredHoldings.length} 件
+              {filteredHoldings.length} {lang === 'ko' ? '개 종목' : '件'}
             </span>
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            口座ごとの銘柄詳細・3時間毎の公表基準価額連動
+            {t.tableSubtitle}
           </p>
         </div>
 
@@ -67,12 +88,12 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
             <select
               value={selectedAccount}
               onChange={(e) => setSelectedAccount(e.target.value)}
-              className="bg-transparent border-none text-slate-700 dark:text-slate-200 font-medium focus:outline-none"
+              className="bg-transparent border-none text-slate-700 dark:text-slate-200 font-medium focus:outline-none cursor-pointer"
             >
-              <option value="all">すべての口座</option>
+              <option value="all">{lang === 'ko' ? '전체 계좌' : 'すべての口座'}</option>
               {accounts.map((acc) => (
                 <option key={acc.id} value={acc.id}>
-                  {acc.name}
+                  {translateAccountName(acc.name, lang)}
                 </option>
               ))}
             </select>
@@ -83,9 +104,9 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="bg-transparent border-none text-slate-700 dark:text-slate-200 font-medium focus:outline-none"
+              className="bg-transparent border-none text-slate-700 dark:text-slate-200 font-medium focus:outline-none cursor-pointer"
             >
-              <option value="all">すべての資産種別</option>
+              <option value="all">{lang === 'ko' ? '전체 자산 카테고리' : 'すべての資産種別'}</option>
               {Object.keys(CATEGORY_CONFIG).map((catKey) => (
                 <option key={catKey} value={catKey}>
                   {CATEGORY_CONFIG[catKey as AssetCategory].label}
@@ -99,7 +120,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
             className="flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-sm transition ml-auto md:ml-0"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>追加</span>
+            <span>{t.addBtn}</span>
           </button>
         </div>
       </div>
@@ -109,14 +130,14 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
         <table className="w-full text-left text-xs">
           <thead>
             <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 font-semibold uppercase tracking-wider">
-              <th className="pb-3 pl-2">銘柄名 / カテゴリ / 備考</th>
-              <th className="pb-3">口座</th>
-              <th className="pb-3 text-right">投資元本 (円)</th>
-              <th className="pb-3 text-right">購入時レート</th>
-              <th className="pb-3 text-right">現在評価額 / 公表基準価額</th>
-              <th className="pb-3 text-right">トータル損益</th>
-              <th className="pb-3 text-right">為替要因 / 株価要因</th>
-              <th className="pb-3 text-center pr-2">操作</th>
+              <th className="pb-3 pl-2">{t.colName}</th>
+              <th className="pb-3">{t.colAccount}</th>
+              <th className="pb-3 text-right">{t.colPrincipal}</th>
+              <th className="pb-3 text-right">{t.colFxRate}</th>
+              <th className="pb-3 text-right">{t.colValNav}</th>
+              <th className="pb-3 text-right">{t.colGain}</th>
+              <th className="pb-3 text-right">{t.colBreakdown}</th>
+              <th className="pb-3 text-center pr-2">{t.colActions}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -134,14 +155,14 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                   {/* Name & Category */}
                   <td className="py-3 pl-2 max-w-sm">
                     <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
-                      <span>{h.name}</span>
+                      <span>{translateHoldingName(h.name, lang)}</span>
                       {item.recurringPlan && (
                         <span
-                          className="bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 text-[10px] px-1.5 py-0.5 rounded border border-emerald-500/30 flex items-center gap-0.5 shrink-0"
-                          title={`毎月${item.recurringPlan.dayOfMonth}日に${formatCurrencyJpy(item.recurringPlan.monthlyAmountJpy)}積立中`}
+                          className="bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 text-[10px] px-1.5 py-0.5 rounded border border-emerald-500/30 flex items-center gap-0.5 shrink-0 font-medium"
+                          title={`毎月${item.recurringPlan.dayOfMonth}日に${formatVal(item.recurringPlan.monthlyAmountJpy)}積立中`}
                         >
                           <Repeat className="w-2.5 h-2.5" />
-                          <span>毎月{item.recurringPlan.dayOfMonth}日 {formatCurrencyJpy(item.recurringPlan.monthlyAmountJpy)}積立</span>
+                          <span>{lang === 'ko' ? `매월 ${item.recurringPlan.dayOfMonth}일 ${formatVal(item.recurringPlan.monthlyAmountJpy)} 적립` : `毎月${item.recurringPlan.dayOfMonth}日 ${formatVal(item.recurringPlan.monthlyAmountJpy)}積立`}</span>
                         </span>
                       )}
                     </div>
@@ -155,11 +176,11 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                       {item.isForeignUnhedged ? (
                         <span className="text-[10px] text-blue-600 dark:text-blue-400 flex items-center gap-0.5 font-medium">
                           <Globe className="w-2.5 h-2.5" />
-                          <span>実質{currConfig.label.split(' ')[0]}建て (ヘッジ無)</span>
+                          <span>{lang === 'ko' ? `실질 ${currConfig.label.split(' ')[0]} 환노출 (헤지무)` : `実質${currConfig.label.split(' ')[0]}建て (ヘッジ無)`}</span>
                         </span>
                       ) : h.hasFxHedge ? (
                         <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">
-                          🛡️ 為替ヘッジあり
+                          🛡️ {lang === 'ko' ? '환헤지 있음' : '為替ヘッジあり'}
                         </span>
                       ) : null}
                       {h.fundCode && (
@@ -171,7 +192,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                     {h.notes && (
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 bg-slate-100/60 dark:bg-slate-800/50 px-2 py-0.5 rounded flex items-center gap-1">
                         <Info className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span>{h.notes}</span>
+                        <span>{translateNotes(h.notes, lang)}</span>
                       </p>
                     )}
                   </td>
@@ -184,14 +205,14 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                         style={{ backgroundColor: item.account?.color || '#9CA3AF' }}
                       />
                       <span className="font-semibold text-slate-800 dark:text-slate-200">
-                        {item.account?.name || '未設定'}
+                        {item.account ? translateAccountName(item.account.name, lang) : '-'}
                       </span>
                     </div>
                   </td>
 
                   {/* Principal */}
                   <td className="py-3 text-right font-semibold text-slate-700 dark:text-slate-300">
-                    {formatCurrencyJpy(h.purchaseAmountJpy)}
+                    {formatVal(h.purchaseAmountJpy)}
                   </td>
 
                   {/* Purchase FX Rate */}
@@ -200,7 +221,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                       <div>
                         <span className="font-medium">¥{h.purchaseFxRate.toFixed(1)}</span>
                         <span className="text-[10px] text-slate-400 block">
-                          (現在: ¥{item.currFxRate.toFixed(1)})
+                          (현재: ¥{item.currFxRate.toFixed(1)})
                         </span>
                       </div>
                     ) : (
@@ -211,12 +232,12 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                   {/* Current Value & Live Web NAV Price */}
                   <td className="py-3 text-right">
                     <div className="font-bold text-slate-900 dark:text-white text-sm">
-                      {formatCurrencyJpy(h.currentValJpy)}
+                      {formatVal(h.currentValJpy)}
                     </div>
                     {h.latestNavPrice ? (
                       <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 flex items-center justify-end gap-1">
                         <Radio className="w-2.5 h-2.5 text-emerald-500 animate-pulse" />
-                        <span>基準値: ¥{h.latestNavPrice.toLocaleString()}</span>
+                        <span>{lang === 'ko' ? '기준가:' : '基準値:'} ¥{h.latestNavPrice.toLocaleString()}</span>
                         {h.dailyChangePct !== undefined && (
                           <span
                             className={
@@ -229,7 +250,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                         )}
                       </div>
                     ) : (
-                      <span className="text-[10px] text-slate-400">固定/現金</span>
+                      <span className="text-[10px] text-slate-400">{lang === 'ko' ? '고정/현금' : '固定/現金'}</span>
                     )}
                   </td>
 
@@ -242,7 +263,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                           : 'text-rose-600 dark:text-rose-400'
                       }`}
                     >
-                      {formatCurrencyJpy(item.gainLossJpy, true)}
+                      {formatVal(item.gainLossJpy, true)}
                     </div>
                     <span
                       className={`text-[10px] font-medium block ${
@@ -258,14 +279,14 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                     {item.isForeignUnhedged ? (
                       <div className="space-y-0.5">
                         <div className="text-blue-600 dark:text-blue-400 font-medium">
-                          株価: {formatCurrencyJpy(item.assetGrowthGainJpy, true)}
+                          {lang === 'ko' ? '주가:' : '株価:'} {formatVal(item.assetGrowthGainJpy, true)}
                         </div>
                         <div className="text-amber-600 dark:text-amber-400 font-medium">
-                          為替: {formatCurrencyJpy(item.fxGainJpy + item.synergyGainJpy, true)}
+                          {lang === 'ko' ? '환율:' : '為替:'} {formatVal(item.fxGainJpy + item.synergyGainJpy, true)}
                         </div>
                       </div>
                     ) : (
-                      <span className="text-slate-400">為替影響なし</span>
+                      <span className="text-slate-400">{lang === 'ko' ? '환율 영향 없음' : '為替影響なし'}</span>
                     )}
                   </td>
 
@@ -275,14 +296,14 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                       <button
                         onClick={() => onEditHolding(h)}
                         className="p-1.5 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
-                        title="編集"
+                        title={lang === 'ko' ? '수정' : '編集'}
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => onDeleteHolding(h.id)}
                         className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
-                        title="削除"
+                        title={lang === 'ko' ? '삭제' : '削除'}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -316,11 +337,11 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                       style={{ backgroundColor: item.account?.color || '#9CA3AF' }}
                     />
                     <span className="text-xs text-slate-600 dark:text-slate-300 font-bold truncate">
-                      {item.account?.name || '口座未設定'}
+                      {item.account ? translateAccountName(item.account.name, lang) : '-'}
                     </span>
                   </div>
                   <h3 className="font-bold text-sm text-slate-900 dark:text-white mt-0.5">
-                    {h.name}
+                    {translateHoldingName(h.name, lang)}
                   </h3>
                 </div>
 
@@ -351,12 +372,12 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                 {item.recurringPlan && (
                   <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] px-2 py-0.5 rounded-full font-semibold border border-emerald-300 dark:border-emerald-800 flex items-center gap-1">
                     <Repeat className="w-2.5 h-2.5" />
-                    毎月{item.recurringPlan.dayOfMonth}日 {formatCurrencyJpy(item.recurringPlan.monthlyAmountJpy)}積立中
+                    {lang === 'ko' ? `매월 ${item.recurringPlan.dayOfMonth}일 ${formatVal(item.recurringPlan.monthlyAmountJpy)} 적립` : `毎月${item.recurringPlan.dayOfMonth}日 ${formatVal(item.recurringPlan.monthlyAmountJpy)}積立中`}
                   </span>
                 )}
                 {h.hasFxHedge && (
                   <span className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] px-2 py-0.5 rounded-full font-medium border border-indigo-300 dark:border-indigo-800">
-                    為替ヘッジあり
+                    {lang === 'ko' ? '환헤지 있음' : '為替ヘッジあり'}
                   </span>
                 )}
               </div>
@@ -365,10 +386,10 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
               {h.latestNavPrice && (
                 <div className="flex items-center gap-2 text-[11px] bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800">
                   <Radio className="w-3 h-3 text-emerald-500 animate-pulse" />
-                  <span>公表基準価額: <strong>¥{h.latestNavPrice.toLocaleString()}</strong></span>
+                  <span>{lang === 'ko' ? '공시기준가:' : '公表基準価額:'} <strong>¥{h.latestNavPrice.toLocaleString()}</strong></span>
                   {h.dailyChangePct !== undefined && (
                     <span className={h.dailyChangePct >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
-                      (前日比 {h.dailyChangePct >= 0 ? '+' : ''}{h.dailyChangePct}%)
+                      ({lang === 'ko' ? '전일비' : '前日比'} {h.dailyChangePct >= 0 ? '+' : ''}{h.dailyChangePct}%)
                     </span>
                   )}
                 </div>
@@ -377,7 +398,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
               {/* Notes */}
               {h.notes && (
                 <div className="text-[11px] text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-900/60 p-2 rounded-lg border border-slate-200/60 dark:border-slate-700/60">
-                  {h.notes}
+                  {translateNotes(h.notes, lang)}
                 </div>
               )}
 
@@ -385,24 +406,24 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 text-xs">
                 <div>
                   <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
-                    投資元本:
+                    {t.colPrincipal}:
                   </span>
                   <span className="font-semibold text-slate-800 dark:text-slate-200">
-                    {formatCurrencyJpy(h.purchaseAmountJpy)}
+                    {formatVal(h.purchaseAmountJpy)}
                   </span>
                   {item.isForeignUnhedged && (
                     <span className="text-[10px] text-slate-400 block">
-                      (買付想定: ¥{h.purchaseFxRate.toFixed(1)})
+                      ({lang === 'ko' ? '매수환율:' : '買付想定:'} ¥{h.purchaseFxRate.toFixed(1)})
                     </span>
                   )}
                 </div>
 
                 <div className="text-right">
                   <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
-                    現在評価額:
+                    {t.currentVal}:
                   </span>
                   <span className="font-bold text-base text-slate-900 dark:text-white">
-                    {formatCurrencyJpy(h.currentValJpy)}
+                    {formatVal(h.currentValJpy)}
                   </span>
                 </div>
               </div>
@@ -410,7 +431,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
               {/* Gain/Loss & FX Breakdown */}
               <div className="bg-white dark:bg-slate-900/60 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700/70 text-xs">
                 <div className="flex items-center justify-between font-bold">
-                  <span className="text-slate-600 dark:text-slate-300">トータル損益:</span>
+                  <span className="text-slate-600 dark:text-slate-300">{t.colGain}:</span>
                   <span
                     className={
                       isGainPositive
@@ -418,7 +439,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                         : 'text-rose-600 dark:text-rose-400'
                     }
                   >
-                    {formatCurrencyJpy(item.gainLossJpy, true)} (
+                    {formatVal(item.gainLossJpy, true)} (
                     {formatPercent(item.gainLossPercent, true)})
                   </span>
                 </div>
@@ -426,10 +447,10 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                 {item.isForeignUnhedged && (
                   <div className="mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-1 text-[11px]">
                     <div className="text-blue-600 dark:text-blue-400">
-                      📈 株価成長: {formatCurrencyJpy(item.assetGrowthGainJpy, true)}
+                      📈 {lang === 'ko' ? '주가 성장:' : '株価成長:'} {formatVal(item.assetGrowthGainJpy, true)}
                     </div>
                     <div className="text-amber-600 dark:text-amber-400 text-right">
-                      💱 為替効果: {formatCurrencyJpy(item.fxGainJpy + item.synergyGainJpy, true)}
+                      💱 {lang === 'ko' ? '환율 효과:' : '為替効果:'} {formatVal(item.fxGainJpy + item.synergyGainJpy, true)}
                     </div>
                   </div>
                 )}

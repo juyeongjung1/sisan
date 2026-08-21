@@ -3,13 +3,21 @@
 import React from 'react';
 import { PortfolioSummary } from '@/types';
 import { formatCurrencyJpy, formatPercent } from '@/lib/calculations';
-import { TrendingUp, TrendingDown, DollarSign, Wallet, ArrowUpRight, Globe, Info } from 'lucide-react';
+import { Language, DICTIONARY } from '@/lib/i18n';
+import { TrendingUp, TrendingDown, DollarSign, Wallet, ArrowUpRight, Globe, Layers, Calendar, Sparkles } from 'lucide-react';
 
 interface SummaryCardsProps {
   summary: PortfolioSummary;
+  lang?: Language;
+  isMasked?: boolean;
 }
 
-export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
+export const SummaryCards: React.FC<SummaryCardsProps> = ({
+  summary,
+  lang = 'ja',
+  isMasked = false,
+}) => {
+  const t = DICTIONARY[lang];
   const isPositive = summary.totalGainLossJpy >= 0;
   const isSimulated = summary.simulatedDiffJpy !== 0;
 
@@ -17,6 +25,15 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
   const foreignTotalGain = summary.assetGrowthGainJpy + summary.fxGainJpy + summary.synergyGainJpy;
   const fxContributionPercent =
     foreignTotalGain > 0 ? (summary.fxGainJpy / foreignTotalGain) * 100 : 0;
+
+  const formatVal = (val: number, showSign: boolean = false) => {
+    if (isMasked) {
+      if (showSign && val > 0) return '+¥***,***';
+      if (showSign && val < 0) return '-¥***,***';
+      return '¥***,***';
+    }
+    return formatCurrencyJpy(val, showSign);
+  };
 
   return (
     <div className="space-y-4">
@@ -26,7 +43,7 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              現在の総資産評価額
+              {t.totalAssets}
             </span>
             <div className="p-2 bg-blue-50 dark:bg-blue-950/50 rounded-xl text-blue-600 dark:text-blue-400">
               <Wallet className="w-5 h-5" />
@@ -34,55 +51,38 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-              {formatCurrencyJpy(summary.totalCurrentValJpy)}
+              {formatVal(summary.totalCurrentValJpy)}
             </span>
           </div>
 
           {isSimulated ? (
             <div className="mt-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
               <span className="text-amber-600 dark:text-amber-400 font-medium">
-                シミュレーション試算額:
+                {lang === 'ko' ? '환율 시뮬레이션 추정액:' : 'シミュレーション試算額:'}
               </span>
               <span className="font-bold text-slate-800 dark:text-slate-200">
-                {formatCurrencyJpy(summary.simulatedTotalValJpy)} (
+                {formatVal(summary.simulatedTotalValJpy)} (
                 <span className={summary.simulatedDiffJpy >= 0 ? 'text-emerald-500' : 'text-rose-500'}>
-                  {formatCurrencyJpy(summary.simulatedDiffJpy, true)}
+                  {formatVal(summary.simulatedDiffJpy, true)}
                 </span>
                 )
               </span>
             </div>
           ) : (
-            <div className="mt-2.5 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
-              <span>海外資産 {summary.foreignAssetsCount} 銘柄を含む</span>
+            <div className="mt-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+              <span>{t.totalPrincipal}:</span>
+              <span className="font-semibold text-slate-700 dark:text-slate-300">
+                {formatVal(summary.totalPurchaseJpy)}
+              </span>
             </div>
           )}
         </div>
 
-        {/* Invested Principal Card */}
+        {/* Total Gain / Loss Card */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              総投資元本 (円建て購入額)
-            </span>
-            <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-400">
-              <DollarSign className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-              {formatCurrencyJpy(summary.totalPurchaseJpy)}
-            </span>
-          </div>
-          <div className="mt-2.5 text-xs text-slate-500 dark:text-slate-400">
-            <span>各証券会社・口座の合計入金額</span>
-          </div>
-        </div>
-
-        {/* Total Gain/Loss Card */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              トータル含み損益
+              {t.totalGain}
             </span>
             <div
               className={`p-2 rounded-xl ${
@@ -94,26 +94,57 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
               {isPositive ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
             </div>
           </div>
-          <div className="mt-2 flex items-baseline gap-2 flex-wrap">
+          <div className="mt-2 flex items-baseline gap-2">
             <span
               className={`text-3xl font-extrabold tracking-tight ${
-                isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                isPositive
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-rose-600 dark:text-rose-400'
               }`}
             >
-              {formatCurrencyJpy(summary.totalGainLossJpy, true)}
+              {formatVal(summary.totalGainLossJpy, true)}
             </span>
+          </div>
+          <div className="mt-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+            <span className="text-slate-500 dark:text-slate-400">{lang === 'ko' ? '수익률:' : '運用利回り:'}</span>
             <span
-              className={`text-sm font-bold px-2 py-0.5 rounded-full ${
+              className={`font-bold px-2 py-0.5 rounded-full ${
                 isPositive
-                  ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
-                  : 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300'
+                  ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
+                  : 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300'
               }`}
             >
               {formatPercent(summary.totalGainLossPercent, true)}
             </span>
           </div>
-          <div className="mt-2.5 text-xs text-slate-500 dark:text-slate-400">
-            <span>（株価変動要因 ＋ 為替変動要因）</span>
+        </div>
+
+        {/* Foreign Asset / FX Exposure Card */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              {t.fxGain}
+            </span>
+            <div className="p-2 bg-amber-50 dark:bg-amber-950/50 rounded-xl text-amber-600 dark:text-amber-400">
+              <DollarSign className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span
+              className={`text-3xl font-extrabold tracking-tight ${
+                summary.fxGainJpy >= 0
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-rose-600 dark:text-rose-400'
+              }`}
+            >
+              {formatVal(summary.fxGainJpy + summary.synergyGainJpy, true)}
+            </span>
+          </div>
+          <div className="mt-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+            <span>{lang === 'ko' ? '외화 노출 종목수:' : '外貨建て銘柄数:'}</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-300">
+              {summary.foreignAssetsCount} {lang === 'ko' ? '개 종목' : '銘柄'}
+            </span>
           </div>
         </div>
       </div>
@@ -127,14 +158,16 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
             <div className="flex items-center gap-2">
               <Globe className="w-5 h-5 text-cyan-400" />
               <h2 className="text-base font-bold text-white tracking-wide">
-                為替要因 vs 資産成長要因の損益分解分析
+                {lang === 'ko' ? '환율 요인 vs 자산 성장 요인의 손익 분해 분석' : '為替要因 vs 資産成長要因の損益分解分析'}
               </h2>
               <span className="bg-cyan-500/20 text-cyan-300 text-[11px] px-2 py-0.5 rounded-full border border-cyan-500/30">
-                海外投信特化
+                {lang === 'ko' ? '해외 펀드 특화' : '海外投信特化'}
               </span>
             </div>
-            <p className="text-xs text-slate-300 mt-1 max-w-2xl">
-              円建てで購入した海外投資信託の利益を、「原資産（株価）自体の成長」と「円安による押し上げ効果」に分解しています。
+            <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+              {lang === 'ko'
+                ? '원화/엔화로 매수한 해외 투자신탁의 이익을「원자산(주가) 자체의 성장」과「환율(원저/엔저)에 의한 상승 효과」로 정밀 분해하고 있습니다.'
+                : '円建てで購入した海外投資信託の利益を、「原資産（株価）自体の成長」と「円安による押し上げ効果」に分解しています。'}
             </p>
           </div>
 
@@ -143,12 +176,12 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
             <div className="bg-slate-800/80 backdrop-blur-sm border border-slate-700/80 px-3.5 py-2 rounded-xl flex items-center gap-3">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <div className="text-xs">
-                <span className="text-slate-400">為替（円安）の寄与度: </span>
+                <span className="text-slate-400">{lang === 'ko' ? '환율(통화) 기여도: ' : '為替（円安）の寄与度: '}</span>
                 <span className="font-bold text-amber-300 text-sm">
                   {fxContributionPercent > 0 ? `${fxContributionPercent.toFixed(1)}%` : '0%'}
                 </span>
                 <span className="text-slate-400 text-[11px] ml-1">
-                  ({formatCurrencyJpy(summary.fxGainJpy + summary.synergyGainJpy, true)})
+                  ({formatVal(summary.fxGainJpy + summary.synergyGainJpy, true)})
                 </span>
               </div>
             </div>
@@ -160,57 +193,69 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
           {/* Asset Growth */}
           <div className="bg-slate-800/50 rounded-xl p-3 border border-slate-700/40">
             <div className="flex items-center justify-between text-xs text-slate-400">
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1 font-semibold text-slate-200">
                 <span className="w-2 h-2 rounded-full bg-blue-400" />
-                ① 原資産の成長要因 (株価等)
+                {lang === 'ko' ? '① 원자산 성장 요인 (주가 등)' : '① 原資産の成長要因 (株価等)'}
               </span>
-              <span className="text-[10px] text-slate-400">外貨価値の上昇</span>
+              <span className="text-[10px] text-blue-300 font-medium">
+                {lang === 'ko' ? '외화 가치 상승' : '外貨価値の上昇'}
+              </span>
             </div>
             <div className="mt-1.5 flex items-baseline justify-between">
               <span className="text-lg font-bold text-white">
-                {formatCurrencyJpy(summary.assetGrowthGainJpy, true)}
+                {formatVal(summary.assetGrowthGainJpy, true)}
               </span>
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">
-              為替が購入時から変わらなかったと仮定した場合の株価上昇益
+            <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+              {lang === 'ko'
+                ? '환율이 매수 시점과 동일하다고 가정한 경우의 순수 주가 상승분'
+                : '為替が購入時から変わらなかったと仮定した場合の株価上昇益'}
             </p>
           </div>
 
           {/* FX Gain */}
           <div className="bg-slate-800/50 rounded-xl p-3 border border-slate-700/40">
             <div className="flex items-center justify-between text-xs text-slate-400">
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1 font-semibold text-amber-200">
                 <span className="w-2 h-2 rounded-full bg-amber-400" />
-                ② 為替変動要因 (円安/円高)
+                {lang === 'ko' ? '② 환율 변동 요인 (환율 차익)' : '② 為替変動要因 (円安/円高)'}
               </span>
-              <span className="text-[10px] text-amber-300">為替レート差</span>
+              <span className="text-[10px] text-amber-300 font-medium">
+                {lang === 'ko' ? '환율 차이' : '為替レート差'}
+              </span>
             </div>
             <div className="mt-1.5 flex items-baseline justify-between">
               <span className="text-lg font-bold text-amber-300">
-                {formatCurrencyJpy(summary.fxGainJpy, true)}
+                {formatVal(summary.fxGainJpy, true)}
               </span>
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">
-              購入時レートと現在レートの差による純粋な為替損益
+            <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+              {lang === 'ko'
+                ? '매수 환율 대비 현재 환율 상승에 따른 순수 환차익'
+                : '購入時レートと現在レートの差による純粋な為替損益'}
             </p>
           </div>
 
           {/* Synergy Effect */}
           <div className="bg-slate-800/50 rounded-xl p-3 border border-slate-700/40">
             <div className="flex items-center justify-between text-xs text-slate-400">
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1 font-semibold text-indigo-200">
                 <span className="w-2 h-2 rounded-full bg-indigo-400" />
-                ③ 相乗要因 (株高 × 円安)
+                {lang === 'ko' ? '③ 시너지 요인 (주가 × 환율)' : '③ 相乗要因 (株高 × 円安)'}
               </span>
-              <span className="text-[10px] text-indigo-300">掛け算効果</span>
+              <span className="text-[10px] text-indigo-300 font-medium">
+                {lang === 'ko' ? '곱셈 효과' : '掛け算効果'}
+              </span>
             </div>
             <div className="mt-1.5 flex items-baseline justify-between">
               <span className="text-lg font-bold text-indigo-200">
-                {formatCurrencyJpy(summary.synergyGainJpy, true)}
+                {formatVal(summary.synergyGainJpy, true)}
               </span>
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">
-              増えた外貨建て利益に対して円安が乗算された追加効果
+            <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+              {lang === 'ko'
+                ? '증가한 외화 수익에 환율 상승이 곱해져 발생한 복합 시너지 효과'
+                : '増えた外貨建て利益に対して円安が乗算された追加効果'}
             </p>
           </div>
         </div>
