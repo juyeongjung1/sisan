@@ -26,7 +26,7 @@ export interface AssetHolding {
   name: string;
   category: AssetCategory;
   baseCurrency: Currency;   // 原資産の通貨（例: USD）
-  hasFxHedge: boolean;      // 為替ヘッジあり/なし（通常海外投信は「なし」）
+  hasFxHedge: boolean;      // 為替ヘッジあり/なし
   purchaseAmountJpy: number;// 投資元本（円）
   purchaseFxRate: number;   // 購入時の平均為替レート（例: 1ドル=138.5円）
   currentValJpy: number;    // 現在の評価額（円）
@@ -45,7 +45,31 @@ export interface RecurringPlan {
   paymentMethod: PaymentMethod;
   isActive: boolean;
   notes?: string;
+  lastProcessedYearMonth?: string; // 最後に積立反映された年月 (例: "2026-08")
 }
+
+export interface AccumulationLog {
+  id: string;
+  planId: string;
+  holdingId: string;
+  holdingName: string;
+  amountJpy: number;
+  executedAt: string;
+  yearMonth: string;
+}
+
+// 銘柄（商品）ごとの日・週・月・年 推移履歴データ
+export interface HoldingHistoryPoint {
+  id: string;
+  holdingId: string;         // 'all' または 特定の銘柄ID
+  date: string;              // YYYY-MM-DD
+  currentValJpy: number;     // その時点の評価額 (円)
+  purchaseAmountJpy: number; // その時点の投資元本 (円)
+  fxRateUsd?: number;        // その時点の為替レート (USD/JPY)
+  notes?: string;            // イベント（例: 「36,000円積立実行」「ボーナス買付」等）
+}
+
+export type TimeframeOption = 'day' | 'week' | 'month' | 'year' | 'all';
 
 export interface ExchangeRates {
   USD: number;

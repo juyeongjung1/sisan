@@ -84,28 +84,28 @@ export const INITIAL_ACCOUNTS: Account[] = [
     id: 'acc_john_rakuten',
     name: 'ジョンの楽天証券口座',
     type: 'brokerage',
-    color: '#BE185D', // Rakuten Red/Pink
+    color: '#BE185D',
     notes: '特定口座・旧NISA・つみたてNISA',
   },
   {
     id: 'acc_miki',
     name: 'ミキの口座',
     type: 'brokerage',
-    color: '#8B5CF6', // Purple
+    color: '#8B5CF6',
     notes: '妻の口座 (実質管理)',
   },
   {
     id: 'acc_john_dc',
     name: 'ジョンの確定拠出年金 (東京海上日動401k)',
     type: 'brokerage',
-    color: '#059669', // Emerald
+    color: '#059669',
     notes: '東京海上日動なっとく401kプラン',
   },
   {
     id: 'acc_kids',
     name: '子供の証券口座 (子供NISA)',
     type: 'brokerage',
-    color: '#F59E0B', // Amber
+    color: '#F59E0B',
     notes: 'ジュニアNISA・待機資金',
   },
 ];
@@ -118,8 +118,8 @@ export const INITIAL_HOLDINGS: AssetHolding[] = [
     name: 'IS米国債20年ヘッジ (特定)',
     category: 'foreign_bond_fund',
     baseCurrency: 'USD',
-    hasFxHedge: true, // 為替ヘッジあり
-    purchaseAmountJpy: 286600, // 199,600 - (-87,000)
+    hasFxHedge: true,
+    purchaseAmountJpy: 286600,
     purchaseFxRate: 153.5,
     currentValJpy: 199600,
     notes: '為替ヘッジあり（-87,000円 -30.35%）。積み立て無し',
@@ -132,8 +132,8 @@ export const INITIAL_HOLDINGS: AssetHolding[] = [
     category: 'foreign_equity_fund',
     baseCurrency: 'USD',
     hasFxHedge: false,
-    purchaseAmountJpy: 709930, // 1,923,404 - 1,213,474
-    purchaseFxRate: 115.0, // 旧NISA初期の平均レート
+    purchaseAmountJpy: 709930,
+    purchaseFxRate: 115.0,
     currentValJpy: 1923404,
     notes: '旧NISAが今年12月で終了するため、12月まで毎月40万円ずつ取り崩して他投資へ移行中',
     updatedAt: new Date().toISOString(),
@@ -145,7 +145,7 @@ export const INITIAL_HOLDINGS: AssetHolding[] = [
     category: 'foreign_equity_fund',
     baseCurrency: 'USD',
     hasFxHedge: false,
-    purchaseAmountJpy: 615000, // 747,638 - 132,638
+    purchaseAmountJpy: 615000,
     purchaseFxRate: 140.0,
     currentValJpy: 747638,
     notes: '毎月8日(休日なら9日)に36,000円積立設定中',
@@ -158,7 +158,7 @@ export const INITIAL_HOLDINGS: AssetHolding[] = [
     category: 'foreign_equity_fund',
     baseCurrency: 'USD',
     hasFxHedge: false,
-    purchaseAmountJpy: 1651500, // 1,903,120 - 251,620
+    purchaseAmountJpy: 1651500,
     purchaseFxRate: 145.0,
     currentValJpy: 1903120,
     notes: '毎月8日(休日なら9日)に64,000円積立設定中',
@@ -173,7 +173,7 @@ export const INITIAL_HOLDINGS: AssetHolding[] = [
     category: 'foreign_equity_fund',
     baseCurrency: 'USD',
     hasFxHedge: false,
-    purchaseAmountJpy: 950000, // 1,120,883 - 170,883
+    purchaseAmountJpy: 950000,
     purchaseFxRate: 143.0,
     currentValJpy: 1120883,
     notes: '積み立て無し (一括投資分)',
@@ -186,7 +186,7 @@ export const INITIAL_HOLDINGS: AssetHolding[] = [
     category: 'foreign_equity_fund',
     baseCurrency: 'USD',
     hasFxHedge: false,
-    purchaseAmountJpy: 66666, // 154,342 - 87,676
+    purchaseAmountJpy: 66666,
     purchaseFxRate: 110.0,
     currentValJpy: 154342,
     notes: '長期保有・含み益大 (+131.51%)',
@@ -201,7 +201,7 @@ export const INITIAL_HOLDINGS: AssetHolding[] = [
     category: 'foreign_equity_fund',
     baseCurrency: 'USD',
     hasFxHedge: false,
-    purchaseAmountJpy: 1806000, // 3,052,385 - 1,246,385
+    purchaseAmountJpy: 1806000,
     purchaseFxRate: 125.0,
     currentValJpy: 3052385,
     notes: '東京海上日動401k。毎月29日に15,000円積立設定中',
@@ -230,29 +230,32 @@ export const INITIAL_RECURRING_PLANS: RecurringPlan[] = [
     holdingId: 'hold_john_3', // FANG+
     accountId: 'acc_john_rakuten',
     monthlyAmountJpy: 36000,
-    dayOfMonth: 8, // 毎月8日 (休日なら翌営業日)
+    dayOfMonth: 8,
     paymentMethod: 'credit_card',
     isActive: true,
     notes: '毎月8日(休日は9日)に36,000円積立',
+    lastProcessedYearMonth: '2026-08',
   },
   {
     id: 'rec_john_ztech',
     holdingId: 'hold_john_4', // Zテック20
     accountId: 'acc_john_rakuten',
     monthlyAmountJpy: 64000,
-    dayOfMonth: 8, // 毎月8日 (休日なら翌営業日)
+    dayOfMonth: 8,
     paymentMethod: 'credit_card',
     isActive: true,
     notes: '毎月8日(休日は9日)に64,000円積立',
+    lastProcessedYearMonth: '2026-08',
   },
   {
     id: 'rec_john_dc',
     holdingId: 'hold_john_dc_1', // 401k 外国株式
     accountId: 'acc_john_dc',
     monthlyAmountJpy: 15000,
-    dayOfMonth: 29, // 毎月29日
+    dayOfMonth: 29,
     paymentMethod: 'bank_transfer',
     isActive: true,
     notes: '確定拠出年金 毎月29日に15,000円積立',
+    lastProcessedYearMonth: '2026-08',
   },
 ];

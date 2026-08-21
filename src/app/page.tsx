@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Account, AssetHolding, RecurringPlan, ExchangeRates } from '@/types';
+import { Account, AssetHolding, RecurringPlan, AccumulationLog, HoldingHistoryPoint, ExchangeRates } from '@/types';
 import {
   loadSavedAccounts,
   saveAccounts,
@@ -9,12 +9,17 @@ import {
   saveHoldings,
   loadSavedRecurringPlans,
   saveRecurringPlans,
+  loadSavedAccumulationLogs,
+  saveAccumulationLogs,
+  loadSavedHistoryPoints,
+  saveHistoryPoints,
   loadSavedRates,
   saveRates,
   ExportData,
 } from '@/lib/storage';
 import { calculatePortfolio } from '@/lib/calculations';
 import { fetchLiveExchangeRates } from '@/lib/fxApi';
+import { checkAndProcessAccumulations, executeManualAccumulation } from '@/lib/accumulation';
 import {
   INITIAL_ACCOUNTS,
   INITIAL_HOLDINGS,
@@ -26,6 +31,7 @@ import { Header } from '@/components/Header';
 import { SummaryCards } from '@/components/SummaryCards';
 import { FxSimulator } from '@/components/FxSimulator';
 import { AllocationsChart } from '@/components/AllocationsChart';
+import { HoldingPerformanceHistory } from '@/components/HoldingPerformanceHistory';
 import { RecurringPlanSection } from '@/components/RecurringPlanSection';
 import { HoldingsTable } from '@/components/HoldingsTable';
 
@@ -35,17 +41,22 @@ import { AccountModal } from '@/components/AccountModal';
 import { BackupModal } from '@/components/BackupModal';
 import { CustomRateModal } from '@/components/CustomRateModal';
 
-import { LayoutDashboard, Sliders, Calendar, ListChecks } from 'lucide-react';
+import { LayoutDashboard, Sliders, Calendar, ListChecks, LineChart, CheckCircle, X } from 'lucide-react';
 
 export default function DashboardPage() {
   // 状態管理
   const [accounts, setAccounts] = useState<Account[]>(INITIAL_ACCOUNTS);
   const [holdings, setHoldings] = useState<AssetHolding[]>(INITIAL_HOLDINGS);
   const [recurringPlans, setRecurringPlans] = useState<RecurringPlan[]>(INITIAL_RECURRING_PLANS);
+  const [accumulationLogs, setAccumulationLogs] = useState<AccumulationLog[]>([]);
+  const [historyPoints, setHistoryPoints] = useState<HoldingHistoryPoint[]>([]);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>(DEFAULT_EXCHANGE_RATES);
   const [simulatedUsdRate, setSimulatedUsdRate] = useState<number>(DEFAULT_EXCHANGE_RATES.USD);
   const [isFetchingRates, setIsFetchingRates] = useState<boolean>(false);
   const [isClient, setIsClient] = useState<boolean>(false);
+
+  // 自動積立通知トースト
+  const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
 
   // モーダル管理
   const [isHoldingModalOpen, setIsHoldingModalOpen] = useState<boolean>(false);
@@ -59,19 +70,41 @@ export default function DashboardPage() {
   const [isCustomRateModalOpen, setIsCustomRateModalOpen] = useState<boolean>(false);
 
   // スマホ用アクティブタブ
-  const [mobileTab, setMobileTab] = useState<'dashboard' | 'simulator' | 'recurring' | 'holdings'>('dashboard');
+  const [mobileTab, setMobileTab] = useState<'dashboard' | 'history' | 'simulator' | 'recurring' | 'holdings'>('dashboard');
 
-  // クライアント初期化 & データ読み込み
+  // クライアント初期化 & データ読み込み & 自動積立判定
   useEffect(() => {
     setIsClient(true);
     const loadedAccounts = loadSavedAccounts();
     const loadedHoldings = loadSavedHoldings();
     const loadedPlans = loadSavedRecurringPlans();
+    const loadedLogs = loadSavedAccumulationLogs();
+    const loadedHistory = loadSavedHistoryPoints(loadedHoldings);
     const loadedRates = loadSavedRates();
 
+    // 日付経過による自動積立チェック
+    const { hasUpdated, updatedHoldings, updatedPlans, generatedLogs } =
+      checkAndProcessAccumulations(loadedHoldings, loadedPlans, new Date());
+
+    if (hasUpdated) {
+      setHoldings(updatedHoldings);
+      setRecurringPlans(updatedPlans);
+      const newLogs = [...generatedLogs, ...loadedLogs];
+      setAccumulationLogs(newLogs);
+      saveHoldings(updatedHoldings);
+      saveRecurringPlans(updatedPlans);
+      saveAccumulationLogs(newLogs);
+
+      const totalAdd = generatedLogs.reduce((sum, l) => sum + l.amountJpy, 0);
+      setNotificationMsg(`🎉 積立指定日を迎えました！ ${generatedLogs.length}件の積立（計¥${totalAdd.toLocaleString()}）を資産に自動反映しました。`);
+    } else {
+      setHoldings(loadedHoldings);
+      setRecurringPlans(loadedPlans);
+      setAccumulationLogs(loadedLogs);
+    }
+
     setAccounts(loadedAccounts);
-    setHoldings(loadedHoldings);
-    setRecurringPlans(loadedPlans);
+    setHistoryPoints(loadedHistory);
     setExchangeRates(loadedRates);
     setSimulatedUsdRate(loadedRates.USD);
 
@@ -94,6 +127,16 @@ export default function DashboardPage() {
     if (!isClient) return;
     saveRecurringPlans(recurringPlans);
   }, [recurringPlans, isClient]);
+
+  useEffect(() => {
+    if (!isClient) return;
+    saveAccumulationLogs(accumulationLogs);
+  }, [accumulationLogs, isClient]);
+
+  useEffect(() => {
+    if (!isClient) return;
+    saveHistoryPoints(historyPoints);
+  }, [historyPoints, isClient]);
 
   useEffect(() => {
     if (!isClient) return;
@@ -128,7 +171,6 @@ export default function DashboardPage() {
   const handleDeleteHolding = (id: string) => {
     if (confirm('この資産を削除してもよろしいですか？')) {
       setHoldings((prev) => prev.filter((h) => h.id !== id));
-      // 紐づく積立設定も削除
       setRecurringPlans((prev) => prev.filter((r) => r.holdingId !== id));
     }
   };
@@ -156,11 +198,29 @@ export default function DashboardPage() {
     }
   };
 
+  // 手動積立実行
+  const handleExecuteManual = (planId: string) => {
+    const { updatedHoldings, updatedPlans, log } = executeManualAccumulation(
+      planId,
+      holdings,
+      recurringPlans,
+      new Date()
+    );
+    setHoldings(updatedHoldings);
+    setRecurringPlans(updatedPlans);
+    if (log) {
+      setAccumulationLogs((prev) => [log, ...prev]);
+      setNotificationMsg(`⚡「${log.holdingName}」に ¥${log.amountJpy.toLocaleString()} の積立を加算反映しました！`);
+    }
+  };
+
   // バックアップ復元 / リセット
   const handleImportData = (data: ExportData) => {
     setAccounts(data.accounts);
     setHoldings(data.holdings);
     setRecurringPlans(data.recurringPlans || []);
+    setAccumulationLogs(data.accumulationLogs || []);
+    setHistoryPoints(data.historyPoints || []);
     if (data.exchangeRates) {
       setExchangeRates(data.exchangeRates);
       setSimulatedUsdRate(data.exchangeRates.USD);
@@ -171,6 +231,8 @@ export default function DashboardPage() {
     setAccounts(INITIAL_ACCOUNTS);
     setHoldings(INITIAL_HOLDINGS);
     setRecurringPlans(INITIAL_RECURRING_PLANS);
+    setAccumulationLogs([]);
+    setHistoryPoints([]);
     setExchangeRates(DEFAULT_EXCHANGE_RATES);
     setSimulatedUsdRate(DEFAULT_EXCHANGE_RATES.USD);
   };
@@ -195,16 +257,41 @@ export default function DashboardPage() {
         onOpenCustomRateModal={() => setIsCustomRateModalOpen(true)}
       />
 
+      {/* Accumulation Notification Toast */}
+      {notificationMsg && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+          <div className="bg-emerald-600 text-white px-4 py-3 rounded-2xl shadow-lg flex items-center justify-between gap-3 animate-fade-in text-xs font-semibold">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 shrink-0 text-emerald-200" />
+              <span>{notificationMsg}</span>
+            </div>
+            <button
+              onClick={() => setNotificationMsg(null)}
+              className="p-1 hover:bg-emerald-700 rounded-lg transition"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Desktop View / Mobile Tabs */}
         <div className="space-y-6">
-          {/* Section 1: Top Summary & FX Breakdown (Always on Desktop, Tabbed on Mobile) */}
+          {/* Section 1: Top Summary & FX Breakdown */}
           <div className={mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
             <SummaryCards summary={summary} />
           </div>
 
-          {/* Section 2: FX Simulation Slider */}
+          {/* Section 2: Product Performance Trend (Day/Week/Month/Year) */}
+          <div className={mobileTab === 'history' || mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
+            <HoldingPerformanceHistory
+              holdings={holdings}
+              historyPoints={historyPoints}
+            />
+          </div>
+
+          {/* Section 3: FX Simulation Slider */}
           <div className={mobileTab === 'simulator' || mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
             <FxSimulator
               currentUsdRate={exchangeRates.USD}
@@ -217,7 +304,7 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Section 3: Portfolio Allocations (Currency, Category, Account) */}
+          {/* Section 4: Portfolio Allocations (Currency, Category, Account) */}
           <div className={mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
             <AllocationsChart
               currencyExposures={currencyExposures}
@@ -226,12 +313,13 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Section 4: Monthly Recurring Investment Plan */}
+          {/* Section 5: Monthly Recurring Investment Plan */}
           <div className={mobileTab === 'recurring' || mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
             <RecurringPlanSection
               recurringPlans={recurringPlans}
               holdings={holdings}
               accounts={accounts}
+              accumulationLogs={accumulationLogs}
               onOpenAddModal={() => {
                 setEditingPlan(null);
                 setIsRecurringModalOpen(true);
@@ -242,11 +330,12 @@ export default function DashboardPage() {
               }}
               onToggleActive={handleToggleRecurringActive}
               onDeletePlan={handleDeleteRecurringPlan}
+              onExecuteManual={handleExecuteManual}
               currentTotalValJpy={summary.totalCurrentValJpy}
             />
           </div>
 
-          {/* Section 5: Holdings Table */}
+          {/* Section 6: Holdings Table */}
           <div className={mobileTab === 'holdings' || mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
             <HoldingsTable
               analyzedHoldings={analyzedHoldings}
@@ -270,7 +359,7 @@ export default function DashboardPage() {
         <button
           onClick={() => setMobileTab('dashboard')}
           className={`flex flex-col items-center p-1 rounded-lg text-[10px] font-medium transition ${
-            mobileTab === 'dashboard' ? 'text-blue-400' : 'text-slate-400'
+            mobileTab === 'dashboard' ? 'text-blue-400 font-bold' : 'text-slate-400'
           }`}
         >
           <LayoutDashboard className="w-5 h-5 mb-0.5" />
@@ -278,9 +367,19 @@ export default function DashboardPage() {
         </button>
 
         <button
+          onClick={() => setMobileTab('history')}
+          className={`flex flex-col items-center p-1 rounded-lg text-[10px] font-medium transition ${
+            mobileTab === 'history' ? 'text-blue-400 font-bold' : 'text-slate-400'
+          }`}
+        >
+          <LineChart className="w-5 h-5 mb-0.5" />
+          <span>商品推移</span>
+        </button>
+
+        <button
           onClick={() => setMobileTab('simulator')}
           className={`flex flex-col items-center p-1 rounded-lg text-[10px] font-medium transition ${
-            mobileTab === 'simulator' ? 'text-blue-400' : 'text-slate-400'
+            mobileTab === 'simulator' ? 'text-blue-400 font-bold' : 'text-slate-400'
           }`}
         >
           <Sliders className="w-5 h-5 mb-0.5" />
@@ -290,7 +389,7 @@ export default function DashboardPage() {
         <button
           onClick={() => setMobileTab('recurring')}
           className={`flex flex-col items-center p-1 rounded-lg text-[10px] font-medium transition ${
-            mobileTab === 'recurring' ? 'text-blue-400' : 'text-slate-400'
+            mobileTab === 'recurring' ? 'text-blue-400 font-bold' : 'text-slate-400'
           }`}
         >
           <Calendar className="w-5 h-5 mb-0.5" />
@@ -300,7 +399,7 @@ export default function DashboardPage() {
         <button
           onClick={() => setMobileTab('holdings')}
           className={`flex flex-col items-center p-1 rounded-lg text-[10px] font-medium transition ${
-            mobileTab === 'holdings' ? 'text-blue-400' : 'text-slate-400'
+            mobileTab === 'holdings' ? 'text-blue-400 font-bold' : 'text-slate-400'
           }`}
         >
           <ListChecks className="w-5 h-5 mb-0.5" />

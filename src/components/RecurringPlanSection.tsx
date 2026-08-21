@@ -1,20 +1,32 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Account, AssetHolding, RecurringPlan } from '@/types';
+import { Account, AssetHolding, RecurringPlan, AccumulationLog } from '@/types';
 import { formatCurrencyJpy } from '@/lib/calculations';
 import { PAYMENT_METHOD_CONFIG } from '@/lib/constants';
-import { Calendar, Plus, CreditCard, ArrowRight, TrendingUp, CheckCircle2, XCircle, Sparkles } from 'lucide-react';
+import {
+  Calendar,
+  Plus,
+  CreditCard,
+  CheckCircle2,
+  XCircle,
+  Sparkles,
+  Zap,
+  History,
+  Info,
+} from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface RecurringPlanSectionProps {
   recurringPlans: RecurringPlan[];
   holdings: AssetHolding[];
   accounts: Account[];
+  accumulationLogs: AccumulationLog[];
   onOpenAddModal: () => void;
   onEditPlan: (plan: RecurringPlan) => void;
   onToggleActive: (id: string) => void;
   onDeletePlan: (id: string) => void;
+  onExecuteManual: (planId: string) => void;
   currentTotalValJpy: number;
 }
 
@@ -22,14 +34,16 @@ export const RecurringPlanSection: React.FC<RecurringPlanSectionProps> = ({
   recurringPlans,
   holdings,
   accounts,
+  accumulationLogs,
   onOpenAddModal,
   onEditPlan,
   onToggleActive,
   onDeletePlan,
+  onExecuteManual,
   currentTotalValJpy,
 }) => {
-  const [expectedReturnRate, setExpectedReturnRate] = useState<number>(5); // 年利5%想定
-  const [showProjection, setShowProjection] = useState<boolean>(true);
+  const [expectedReturnRate, setExpectedReturnRate] = useState<number>(5);
+  const [showHistory, setShowHistory] = useState<boolean>(false);
 
   const activePlans = recurringPlans.filter((p) => p.isActive);
   const monthlyTotal = activePlans.reduce((sum, p) => sum + p.monthlyAmountJpy, 0);
@@ -45,11 +59,11 @@ export const RecurringPlanSection: React.FC<RecurringPlanSectionProps> = ({
 
   let nextDay = sortedDays.find((d) => d >= currentDay);
   if (!nextDay && sortedDays.length > 0) {
-    nextDay = sortedDays[0]; // 来月の最初
+    nextDay = sortedDays[0];
   }
 
-  // 1年後〜10年後の推移シミュレーションデータ生成（複利計算）
-  const r = expectedReturnRate / 100 / 12; // 月利
+  // 将来推移シミュレーションデータ（複利計算）
+  const r = expectedReturnRate / 100 / 12;
   const projectionData = [
     { year: '現在', total: Math.round(currentTotalValJpy), invested: Math.round(currentTotalValJpy) },
   ];
@@ -87,18 +101,41 @@ export const RecurringPlanSection: React.FC<RecurringPlanSectionProps> = ({
               </span>
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              各証券会社・クレカでの毎月の積立ルールと将来の資産形成推移
+              指定日を迎えると自動で資産へ加算反映されます
             </p>
           </div>
         </div>
 
-        <button
-          onClick={onOpenAddModal}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-sm transition self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          <span>積立設定を追加</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          {accumulationLogs.length > 0 && (
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>積立履歴 ({accumulationLogs.length})</span>
+            </button>
+          )}
+
+          <button
+            onClick={onOpenAddModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-sm transition"
+          >
+            <Plus className="w-4 h-4" />
+            <span>積立設定を追加</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Auto-accumulation Info Banner */}
+      <div className="p-3 bg-emerald-50/80 dark:bg-emerald-950/30 rounded-xl border border-emerald-200/80 dark:border-emerald-900/40 flex items-start gap-2.5 text-xs text-emerald-900 dark:text-emerald-300">
+        <Info className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+        <div>
+          <strong>⚡ 自動積立反映機能が有効です</strong>
+          <p className="text-[11px] text-emerald-800/90 dark:text-emerald-300/80 mt-0.5">
+            毎月の積立日（例: 8日、29日）を過ぎた状態でサイトを開くと、自動で元本と評価額に積立額が加算反映されます。手動で即時反映したい場合は各プランの「今すぐ積立」ボタンを押してください。
+          </p>
+        </div>
       </div>
 
       {/* Overview Stat Cards */}
@@ -111,7 +148,7 @@ export const RecurringPlanSection: React.FC<RecurringPlanSectionProps> = ({
             {formatCurrencyJpy(monthlyTotal)}
           </div>
           <span className="text-[11px] text-slate-400 mt-0.5 block">
-            年間合計: {formatCurrencyJpy(yearlyTotal)}
+            年間積立合計: {formatCurrencyJpy(yearlyTotal)}
           </span>
         </div>
 
@@ -135,10 +172,40 @@ export const RecurringPlanSection: React.FC<RecurringPlanSectionProps> = ({
             {nextDay ? `毎月 ${nextDay} 日` : '設定なし'}
           </div>
           <span className="text-[11px] text-slate-400 mt-0.5 block">
-            自動で入金・買付を実行
+            次回積立時に自動加算
           </span>
         </div>
       </div>
+
+      {/* Accumulation Logs (if toggled) */}
+      {showHistory && accumulationLogs.length > 0 && (
+        <div className="bg-slate-50 dark:bg-slate-800/80 rounded-xl p-4 border border-slate-200 dark:border-slate-700 space-y-2">
+          <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+            <History className="w-3.5 h-3.5" />
+            <span>過去の積立反映履歴</span>
+          </h4>
+          <div className="space-y-1.5 max-h-40 overflow-y-auto">
+            {accumulationLogs.map((log) => (
+              <div
+                key={log.id}
+                className="flex items-center justify-between p-2 bg-white dark:bg-slate-900 rounded-lg text-xs border border-slate-100 dark:border-slate-800"
+              >
+                <div>
+                  <span className="font-semibold text-slate-900 dark:text-white">
+                    {log.holdingName}
+                  </span>
+                  <span className="text-[10px] text-slate-400 ml-2">
+                    {new Date(log.executedAt).toLocaleDateString('ja-JP')}
+                  </span>
+                </div>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                  +{formatCurrencyJpy(log.amountJpy)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Plan Cards List */}
       <div className="space-y-3">
@@ -200,8 +267,8 @@ export const RecurringPlanSection: React.FC<RecurringPlanSectionProps> = ({
                   </div>
 
                   <div className="mt-3 flex items-baseline justify-between pt-2 border-t border-slate-100 dark:border-slate-700/60">
-                    <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                      <CreditCard className="w-3.5 h-3.5 text-slate-400" />
+                    <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 flex-wrap">
+                      <CreditCard className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span>{payMethod}</span>
                       <span className="text-slate-300 dark:text-slate-600">•</span>
                       <span className="font-semibold text-slate-700 dark:text-slate-300">
@@ -223,19 +290,34 @@ export const RecurringPlanSection: React.FC<RecurringPlanSectionProps> = ({
                     </p>
                   )}
 
-                  <div className="mt-3 flex justify-end gap-2 text-xs">
+                  <div className="mt-3 flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700/60 text-xs">
                     <button
-                      onClick={() => onEditPlan(plan)}
-                      className="text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 px-2 py-1 rounded transition font-medium"
+                      onClick={() => {
+                        if (confirm(`「${holding?.name}」に今月分の積立（${formatCurrencyJpy(plan.monthlyAmountJpy)}）を即時反映しますか？`)) {
+                          onExecuteManual(plan.id);
+                        }
+                      }}
+                      className="flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 font-semibold bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 transition"
+                      title="今すぐ積立実行"
                     >
-                      編集
+                      <Zap className="w-3 h-3" />
+                      <span>今すぐ積立加算</span>
                     </button>
-                    <button
-                      onClick={() => onDeletePlan(plan.id)}
-                      className="text-rose-500 hover:text-rose-600 px-2 py-1 rounded transition font-medium"
-                    >
-                      削除
-                    </button>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => onEditPlan(plan)}
+                        className="text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 px-2 py-1 rounded transition font-medium"
+                      >
+                        編集
+                      </button>
+                      <button
+                        onClick={() => onDeletePlan(plan.id)}
+                        className="text-rose-500 hover:text-rose-600 px-2 py-1 rounded transition font-medium"
+                      >
+                        削除
+                      </button>
+                    </div>
                   </div>
                 </div>
               );

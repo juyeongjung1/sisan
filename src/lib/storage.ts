@@ -1,10 +1,13 @@
-import { Account, AssetHolding, RecurringPlan, ExchangeRates } from '@/types';
+import { Account, AssetHolding, RecurringPlan, AccumulationLog, HoldingHistoryPoint, ExchangeRates } from '@/types';
 import { DEFAULT_EXCHANGE_RATES, INITIAL_ACCOUNTS, INITIAL_HOLDINGS, INITIAL_RECURRING_PLANS } from './constants';
+import { generateInitialHoldingHistories } from './historyGenerator';
 
 const STORAGE_KEYS = {
   ACCOUNTS: 'sisan_accounts_v2',
   HOLDINGS: 'sisan_holdings_v2',
   RECURRING: 'sisan_recurring_v2',
+  LOGS: 'sisan_accum_logs_v2',
+  HISTORY: 'sisan_history_points_v2',
   RATES: 'sisan_rates_v2',
 };
 
@@ -14,6 +17,8 @@ export interface ExportData {
   accounts: Account[];
   holdings: AssetHolding[];
   recurringPlans: RecurringPlan[];
+  accumulationLogs?: AccumulationLog[];
+  historyPoints?: HoldingHistoryPoint[];
   exchangeRates: ExchangeRates;
 }
 
@@ -80,6 +85,48 @@ export function saveRecurringPlans(plans: RecurringPlan[]): void {
   }
 }
 
+export function loadSavedAccumulationLogs(): AccumulationLog[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.LOGS);
+    if (!data) return [];
+    return JSON.parse(data);
+  } catch (e) {
+    console.error('Failed to load accumulation logs:', e);
+    return [];
+  }
+}
+
+export function saveAccumulationLogs(logs: AccumulationLog[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(logs));
+  } catch (e) {
+    console.error('Failed to save accumulation logs:', e);
+  }
+}
+
+export function loadSavedHistoryPoints(holdings: AssetHolding[]): HoldingHistoryPoint[] {
+  if (typeof window === 'undefined') return generateInitialHoldingHistories(holdings);
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.HISTORY);
+    if (!data) return generateInitialHoldingHistories(holdings);
+    return JSON.parse(data);
+  } catch (e) {
+    console.error('Failed to load history points:', e);
+    return generateInitialHoldingHistories(holdings);
+  }
+}
+
+export function saveHistoryPoints(points: HoldingHistoryPoint[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(points));
+  } catch (e) {
+    console.error('Failed to save history points:', e);
+  }
+}
+
 export function loadSavedRates(): ExchangeRates {
   if (typeof window === 'undefined') return DEFAULT_EXCHANGE_RATES;
   try {
@@ -105,14 +152,18 @@ export function exportToJson(
   accounts: Account[],
   holdings: AssetHolding[],
   recurringPlans: RecurringPlan[],
-  exchangeRates: ExchangeRates
+  exchangeRates: ExchangeRates,
+  accumulationLogs: AccumulationLog[] = [],
+  historyPoints: HoldingHistoryPoint[] = []
 ): void {
   const exportObj: ExportData = {
-    version: '1.2.0',
+    version: '1.4.0',
     exportedAt: new Date().toISOString(),
     accounts,
     holdings,
     recurringPlans,
+    accumulationLogs,
+    historyPoints,
     exchangeRates,
   };
   const jsonStr = JSON.stringify(exportObj, null, 2);
