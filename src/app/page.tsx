@@ -86,8 +86,8 @@ export default function DashboardPage() {
   // 自動積立通知トースト
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
 
-  // モーダル管理（初回自動表示のため初期値 true）
-  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(true);
+  // モーダル管理（初回自動表示なし）
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
   const [isHoldingModalOpen, setIsHoldingModalOpen] = useState<boolean>(false);
   const [editingHolding, setEditingHolding] = useState<AssetHolding | null>(null);
 
@@ -450,17 +450,12 @@ export default function DashboardPage() {
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         <div className="space-y-6">
-          {/* Section 1: Top Summary & FX Breakdown */}
+          {/* Section 1: 総評価資産関連 */}
           <div className={mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
             <SummaryCards summary={summary} lang={lang} isMasked={isMasked} />
           </div>
 
-          {/* Section 2: Daily Contribution & US Stock Driver Analysis */}
-          <div className={mobileTab === 'contribution' || mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
-            <DailyContributionAnalysis holdings={holdings} lang={lang} isMasked={isMasked} />
-          </div>
-
-          {/* Section 3: Product Performance Trend (Day/Week/Month/Year) */}
+          {/* Section 2: 推移分析（商品別・期間別グラフ） */}
           <div className={mobileTab === 'history' || mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
             <HoldingPerformanceHistory
               holdings={holdings}
@@ -470,7 +465,12 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Section 4: FX Simulation Slider */}
+          {/* Section 3 & 4: 各商品別今日の寄与度 ＆ 指数を動かした米国株要因 */}
+          <div className={mobileTab === 'contribution' || mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
+            <DailyContributionAnalysis holdings={holdings} lang={lang} isMasked={isMasked} />
+          </div>
+
+          {/* Section 5: 為替関連シミュレーション */}
           <div className={mobileTab === 'simulator' || mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
             <FxSimulator
               currentUsdRate={exchangeRates.USD}
@@ -485,7 +485,7 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Section 5: Portfolio Allocations (Product, Category, Currency, Account) */}
+          {/* Section 6: Portfolio Allocations (Product, Category, Currency, Account) */}
           <div className={mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
             <AllocationsChart
               currencyExposures={currencyExposures}
@@ -498,7 +498,7 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Section 6: Monthly Recurring Investment Plan */}
+          {/* Section 7: Monthly Recurring Investment Plan */}
           <div className={mobileTab === 'recurring' || mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
             <RecurringPlanSection
               recurringPlans={recurringPlans}
@@ -522,7 +522,7 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Section 7: Holdings Table */}
+          {/* Section 8: Holdings Table */}
           <div className={mobileTab === 'holdings' || mobileTab === 'dashboard' ? 'block' : 'hidden md:block'}>
             <HoldingsTable
               analyzedHoldings={analyzedHoldings}
