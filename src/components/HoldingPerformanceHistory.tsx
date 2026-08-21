@@ -16,6 +16,7 @@ import {
   Sparkles,
   Percent,
   X,
+  Maximize2,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -51,6 +52,7 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
   const [selectedHoldingId, setSelectedHoldingId] = useState<string>('all');
   const [timeframe, setTimeframe] = useState<TimeframeOption>('day');
   const [showFxRateLine, setShowFxRateLine] = useState<boolean>(true);
+  const [isDynamicScale, setIsDynamicScale] = useState<boolean>(true); // 変化を激しく・ダイナミックに見せるオートズーム
 
   // フィルタリングされたデータ
   const rawChartData = filterHistoryByTimeframe(historyPoints, selectedHoldingId, timeframe);
@@ -105,6 +107,22 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
   ];
 
   const currentTfConfig = timeframeLabels.find((t) => t.key === timeframe) || timeframeLabels[0];
+
+  // 変化を激しく見せるダイナミックスケーリング（Y軸オートズーム）の計算
+  const valDomain = useMemo<[number, number] | ['auto', 'auto']>(() => {
+    if (!isDynamicScale || enrichedChartData.length === 0) return ['auto', 'auto'];
+
+    const values = enrichedChartData.flatMap((d) => [d.currentValJpy, d.purchaseAmountJpy]).filter((v) => v > 0);
+    if (values.length === 0) return ['auto', 'auto'];
+
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const diff = max - min;
+    // 変化がよりドラマチック・激しく見えるよう上下余白を最小化（8%マージン）
+    const padding = diff > 0 ? diff * 0.08 : max * 0.03;
+
+    return [Math.max(0, Math.floor(min - padding)), Math.ceil(max + padding)];
+  }, [enrichedChartData, isDynamicScale]);
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
@@ -181,9 +199,12 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 商品別・期間別（日/週/月/年）資産推移分析
+                <span className="bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                  変動拡大ズーム表示中
+                </span>
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                実際の運用期間（レバナス5年・FANG+/Zテック2年等）に連動した推移トラッカー
+                日々の微小な値動きやボラティリティを強調するダイナミック拡大チャート
               </p>
             </div>
           </div>
@@ -200,6 +221,20 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
 
         {/* Holding Selector Dropdown & Timeframe Tabs */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Dynamic Zoom Scale Toggle */}
+          <button
+            onClick={() => setIsDynamicScale(!isDynamicScale)}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition border ${
+              isDynamicScale
+                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+            }`}
+            title="波の動きをダイナミックに強調するオートズームの切り替え"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+            <span>{isDynamicScale ? '⚡ 変動強調: ON' : '全域表示: 0基準'}</span>
+          </button>
+
           <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs w-full sm:w-auto">
             <Layers className="w-4 h-4 text-blue-500 shrink-0" />
             <select
@@ -246,7 +281,7 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
         </div>
       </div>
 
-      {/* 4 Performance Metric Cards with Clear Meaning */}
+      {/* 4 Performance Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         {/* Card 1: Current Val */}
         <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
@@ -261,7 +296,7 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
           </span>
         </div>
 
-        {/* Card 2: Latest 1-Day Change (前日比: 昨日との差) */}
+        {/* Card 2: Latest 1-Day Change (前日比) */}
         <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
           <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
             前日比（昨日からの1日変動）
@@ -289,7 +324,7 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
           </span>
         </div>
 
-        {/* Card 3: Selected Period Cumulative Change (選択期間の通算増減) */}
+        {/* Card 3: Selected Period Cumulative Change */}
         <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
           <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
             {currentTfConfig.periodText}の増減
@@ -343,14 +378,14 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
         </div>
       </div>
 
-      {/* Main Trend Chart */}
-      <div className="h-72 w-full pt-2">
+      {/* Main Dynamic Zoom Trend Chart */}
+      <div className="h-80 w-full pt-2">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={enrichedChartData}>
             <defs>
               <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.7} />
-                <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.05} />
+                <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.75} />
+                <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.08} />
               </linearGradient>
               <linearGradient id="colorPrincipal" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#64748B" stopOpacity={0.4} />
@@ -370,9 +405,10 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
             />
             <YAxis
               yAxisId="val"
+              domain={valDomain}
               stroke="#94A3B8"
               fontSize={11}
-              tickFormatter={(v) => `${(v / 10000).toFixed(0)}万`}
+              tickFormatter={(v) => `${(v / 10000).toFixed(1)}万`}
             />
             {showFxRateLine && (
               <YAxis
@@ -399,17 +435,19 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
               type="monotone"
               dataKey="currentValJpy"
               stroke="#3B82F6"
-              strokeWidth={2.5}
+              strokeWidth={3}
               fillOpacity={1}
               fill="url(#colorVal)"
               name="currentValJpy"
+              dot={timeframe === 'day' ? { r: 3.5, fill: '#3B82F6', strokeWidth: 2, stroke: '#FFFFFF' } : false}
+              activeDot={{ r: 6, fill: '#2563EB', strokeWidth: 3, stroke: '#FFFFFF' }}
             />
             <Area
               yAxisId="val"
               type="monotone"
               dataKey="purchaseAmountJpy"
               stroke="#64748B"
-              strokeWidth={1.5}
+              strokeWidth={2}
               strokeDasharray="4 4"
               fillOpacity={1}
               fill="url(#colorPrincipal)"
@@ -421,7 +459,7 @@ export const HoldingPerformanceHistory: React.FC<HoldingPerformanceHistoryProps>
                 type="monotone"
                 dataKey="fxRateUsd"
                 stroke="#F59E0B"
-                strokeWidth={1.5}
+                strokeWidth={1.8}
                 dot={false}
                 name="fxRateUsd"
               />
